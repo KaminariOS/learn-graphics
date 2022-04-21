@@ -17,7 +17,7 @@ fn vs_main(
     var v_out: VertexOutput;
     v_out.color = model.color;
     v_out.clip_position = vec4<f32>(model.position, 1.0);
-    return out;
+    return v_out;
 }
 
 // Fragment shader

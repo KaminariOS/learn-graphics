@@ -50,16 +50,7 @@ const VERTICES: &[Vertex] = &[
     Vertex {
         position: [0.5, -0.5, 0.0],
         color: [0.0, 0.0, 1.0],
-    }, // C
-    // Vertex {
-    //     position: [0.35966998, -0.3473291, 0.0],
-    //     color: [0.5, 0.3, 0.5],
-    // }, // D
-    // Vertex {
-    //     position: [0.44147372, 0.2347359, 0.0],
-    //     color: [0.3, 0.3, 0.1],
-    // }, // E
-
+    },
 ];
 
 // const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4,  /* padding */ 0];
@@ -238,9 +229,9 @@ impl State {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
                             a: 1.0,
                         }),
                         store: true,
@@ -280,15 +271,22 @@ pub async fn run() {
     {
         // Winit prevents sizing with CSS, so we have to set
         // the size manually when on web.
-        use winit::dpi::PhysicalSize;
-        window.set_inner_size(PhysicalSize::new(450, 400));
-        
+        use winit::dpi::LogicalSize;
+
         use winit::platform::web::WindowExtWebSys;
+        let win = web_sys::window().expect("Failed to get window object");
+        fn get_size(val: Result<JsValue, JsValue>) -> f64 {
+            val.ok().and_then(|x| x.as_f64()).unwrap()
+        }
+        let (width, height) = (get_size(win.inner_width()), get_size(win.inner_height()));
+        log::info!("Window size: {:?} {:?}", width, height);
+        window.set_inner_size(LogicalSize::new(height, height));
         web_sys::window()
             .and_then(|win| win.document())
             .and_then(|doc| {
                 let dst = doc.get_element_by_id("wasm-example")?;
                 let canvas = web_sys::Element::from(window.canvas());
+
                 dst.append_child(&canvas).ok()?;
                 Some(())
             })
@@ -348,3 +346,5 @@ pub async fn run() {
         }
     });
 }
+
+

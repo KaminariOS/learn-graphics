@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pong with WASM</title>
+    <style>
+        body {
+            margin: 0;
+        }
+        canvas {
+            background-color: black;
+        }
+        #wasm-example {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+<div id="wasm-example"></div>
+<script type="module">
+        import init from "./pkg/learn_graphics.js";
+        init().then(() => {
+            console.log("WASM Loaded");
+        });
+    </script>
+
+</body>
+
+</html>

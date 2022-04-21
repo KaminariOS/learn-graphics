@@ -20,7 +20,7 @@ bytemuck = { version = "1.4", features = [ "derive" ] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
-console_log = "0.2"
+console_log = {version = "0.2", features = ["color"]}
 wgpu = { version = "0.12", features = ["webgl"]}
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
