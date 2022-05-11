@@ -54,7 +54,7 @@ const VERTICES: &[Vertex] = &[
 ];
 
 // const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4,  /* padding */ 0];
-const INDICES: &[u16] = &[0, 1, 2];
+const INDICES: &[u16] = &[0, 1, 2, 0];
 
 struct State {
     surface: wgpu::Surface,
@@ -67,12 +67,18 @@ struct State {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
+    tex_view: wgpu::TextureView,
+    rebuild_tex: bool,
+    sample_count: u32,
+    msaa: bool,
+    frame_count: usize,
+    render_pipeline_n: wgpu::RenderPipeline
 }
 
 impl State {
     async fn new(window: &Window) -> Self {
         let size = window.inner_size();
-
+        log::info!("{:?}", size);
         // The instance is a handle to our GPU
         // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -125,7 +131,51 @@ impl State {
                 push_constant_ranges: &[],
             });
 
+        let sample_count = 4;
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[Vertex::desc()],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent::REPLACE,
+                        alpha: wgpu::BlendComponent::REPLACE,
+                    }),
+                    write_mask: wgpu::ColorWrites::ALL,
+                }],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
+                polygon_mode: wgpu::PolygonMode::Fill,
+                // Requires Features::DEPTH_CLIP_CONTROL
+                unclipped_depth: false,
+                // Requires Features::CONSERVATIVE_RASTERIZATION
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: sample_count,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            // If the pipeline will be used with a multiview render pass, this
+            // indicates how many array layers the attachments will have.
+            multiview: None,
+        });
+
+        let render_pipeline_n = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
@@ -167,7 +217,6 @@ impl State {
             // indicates how many array layers the attachments will have.
             multiview: None,
         });
-
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(VERTICES),
@@ -179,6 +228,7 @@ impl State {
             usage: wgpu::BufferUsages::INDEX,
         });
         let num_indices = INDICES.len() as u32;
+        let tex_view = create_multisampled_framebuffer(&device, &config, sample_count);
 
         Self {
             surface,
@@ -190,6 +240,12 @@ impl State {
             vertex_buffer,
             index_buffer,
             num_indices,
+            tex_view,
+            rebuild_tex: false,
+            sample_count,
+            msaa: true,
+            frame_count: 0,
+            render_pipeline_n
         }
     }
 
@@ -199,21 +255,40 @@ impl State {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+            self.rebuild_tex = true;
         }
     }
 
     #[allow(unused_variables)]
     fn input(&mut self, event: &WindowEvent) -> bool {
-        false
+        match event {
+            WindowEvent::KeyboardInput {
+                input: KeyboardInput{
+                    virtual_keycode: Some(VirtualKeyCode::Space),
+                    state: ElementState::Pressed,
+                    ..
+                },
+                ..
+            } => {self.msaa = !self.msaa; true}
+            _ => false
+        }
     }
 
     fn update(&mut self) {}
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        self.frame_count += 1;
+        println!("frame count: {}", self.frame_count);
+        if self.rebuild_tex {
+            self.tex_view = create_multisampled_framebuffer(&self.device, &self.config, 4);
+            self.rebuild_tex = false;
+        }
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let tex_view = &self.tex_view;
 
         let mut encoder = self
             .device
@@ -225,8 +300,8 @@ impl State {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
+                    view: if self.msaa {tex_view} else { &view },
+                    resolve_target: if self.msaa {Some(&view)} else { None },
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.0,
@@ -240,7 +315,7 @@ impl State {
                 depth_stencil_attachment: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_pipeline(if self.msaa {&self.render_pipeline} else { &self.render_pipeline_n });
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
@@ -251,6 +326,31 @@ impl State {
 
         Ok(())
     }
+}
+
+fn create_multisampled_framebuffer(
+    device: &wgpu::Device,
+    config: &wgpu::SurfaceConfiguration,
+    sample_count: u32,
+) -> wgpu::TextureView {
+    let multisampled_texture_extent = wgpu::Extent3d {
+        width: config.width,
+        height: config.height,
+        depth_or_array_layers: 1,
+    };
+    let multisampled_frame_descriptor = &wgpu::TextureDescriptor {
+        size: multisampled_texture_extent,
+        mip_level_count: 1,
+        sample_count,
+        dimension: wgpu::TextureDimension::D2,
+        format: config.format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        label: None,
+    };
+
+    device
+        .create_texture(multisampled_frame_descriptor)
+        .create_view(&wgpu::TextureViewDescriptor::default())
 }
 
 #[cfg_attr(target_arch="wasm32", wasm_bindgen(start))]
