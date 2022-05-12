@@ -1,0 +1,8 @@
+= Learning wgpu
+:source-highlighter: rouge
+
+.Build wasm
+[source, bash]
+----
+wasm-pack build --target web
+----

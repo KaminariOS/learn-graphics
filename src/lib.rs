@@ -69,10 +69,7 @@ struct State {
     num_indices: u32,
     tex_view: wgpu::TextureView,
     rebuild_tex: bool,
-    sample_count: u32,
-    msaa: bool,
     frame_count: usize,
-    render_pipeline_n: wgpu::RenderPipeline
 }
 
 impl State {
@@ -131,7 +128,6 @@ impl State {
                 push_constant_ranges: &[],
             });
 
-        let sample_count = 4;
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
@@ -166,7 +162,7 @@ impl State {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
-                count: sample_count,
+                count: 4,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -175,48 +171,7 @@ impl State {
             multiview: None,
         });
 
-        let render_pipeline_n = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[Vertex::desc()],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState {
-                        color: wgpu::BlendComponent::REPLACE,
-                        alpha: wgpu::BlendComponent::REPLACE,
-                    }),
-                    write_mask: wgpu::ColorWrites::ALL,
-                }],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-                polygon_mode: wgpu::PolygonMode::Fill,
-                // Requires Features::DEPTH_CLIP_CONTROL
-                unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            // If the pipeline will be used with a multiview render pass, this
-            // indicates how many array layers the attachments will have.
-            multiview: None,
-        });
+
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(VERTICES),
@@ -228,7 +183,7 @@ impl State {
             usage: wgpu::BufferUsages::INDEX,
         });
         let num_indices = INDICES.len() as u32;
-        let tex_view = create_multisampled_framebuffer(&device, &config, sample_count);
+        let tex_view = create_multisampled_framebuffer(&device, &config, 4);
 
         Self {
             surface,
@@ -242,10 +197,7 @@ impl State {
             num_indices,
             tex_view,
             rebuild_tex: false,
-            sample_count,
-            msaa: true,
             frame_count: 0,
-            render_pipeline_n
         }
     }
 
@@ -269,7 +221,7 @@ impl State {
                     ..
                 },
                 ..
-            } => {self.msaa = !self.msaa; true}
+            } => {true}
             _ => false
         }
     }
@@ -300,8 +252,8 @@ impl State {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[wgpu::RenderPassColorAttachment {
-                    view: if self.msaa {tex_view} else { &view },
-                    resolve_target: if self.msaa {Some(&view)} else { None },
+                    view: tex_view,
+                    resolve_target: Some(&view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.0,
@@ -315,7 +267,7 @@ impl State {
                 depth_stencil_attachment: None,
             });
 
-            render_pass.set_pipeline(if self.msaa {&self.render_pipeline} else { &self.render_pipeline_n });
+            render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
