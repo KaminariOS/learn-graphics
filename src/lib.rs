@@ -1,8 +1,9 @@
 use std::iter;
-use cgmath::Rotation3;
 
 mod camera;
 use camera::Camera;
+
+mod geo_gen;
 
 use wgpu::util::DeviceExt;
 use winit::{
@@ -42,6 +43,8 @@ impl Vertex {
         }
     }
 }
+
+
 
 const VERTICES: &[Vertex] = &[
     Vertex {
@@ -163,7 +166,7 @@ impl State {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None,
+                cull_mode: Some(wgpu::Face::Back),
                 // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
                 polygon_mode: wgpu::PolygonMode::Fill,
                 // Requires Features::DEPTH_CLIP_CONTROL
@@ -437,3 +440,10 @@ pub async fn run() {
 }
 
 
+pub fn permute_unique(mut nums: Vec<i32>) -> Vec<Vec<i32>> {
+    nums.sort();
+    let len = nums.len();
+    let mut res = vec![];
+
+    res
+}
