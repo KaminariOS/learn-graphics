@@ -4,6 +4,9 @@ mod camera;
 use camera::Camera;
 
 mod geo_gen;
+use geo_gen::Entity;
+
+mod texture;
 
 use wgpu::util::DeviceExt;
 use winit::{
@@ -14,7 +17,10 @@ use winit::{
 
 #[cfg(target_arch="wasm32")]
 use wasm_bindgen::prelude::*;
+use wgpu::RenderPipeline;
 use crate::camera::{CameraController, CameraView, Projection};
+use crate::geo_gen::prepare_tex;
+use crate::texture::Texture;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -48,7 +54,7 @@ impl Vertex {
 
 const VERTICES: &[Vertex] = &[
     Vertex {
-        position: [0.0, 0.5, 0.0],
+        position: [0.0, 0.5, -0.5],
         color: [1.0, 0.0, 0.0],
     }, // A
     Vertex {
@@ -59,10 +65,14 @@ const VERTICES: &[Vertex] = &[
         position: [0.5, -0.5, 0.0],
         color: [0.0, 0.0, 1.0],
     },
+    Vertex {
+        position: [0.0, -0.5, -1.0],
+        color: [0.5, 0.5, 0.5],
+    }
 ];
 
 // const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4,  /* padding */ 0];
-const INDICES: &[u16] = &[0, 1, 2, 0];
+const INDICES: &[u16] = &[0, 1, 2, 2, 3, 0, 0, 3, 1, 1, 3, 2];
 
 struct State {
     surface: wgpu::Surface,
@@ -79,7 +89,10 @@ struct State {
     frame_count: usize,
     camera: Camera,
     camera_controller: CameraController,
-    mouse_pressed: bool
+    mouse_pressed: bool,
+    entity: Entity,
+    rp_tex: RenderPipeline,
+    depth_texture: Texture
 }
 
 impl State {
@@ -133,8 +146,14 @@ impl State {
 
         let camera = Camera::new(
             CameraView::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0)),
-            Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0),
+            Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 200.0),
             &device);
+
+        let entity = Entity::new(&device, &queue);
+
+        let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
@@ -174,7 +193,13 @@ impl State {
                 // Requires Features::CONSERVATIVE_RASTERIZATION
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: texture::Texture::DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less, // 1.
+                stencil: wgpu::StencilState::default(), // 2.
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: 4,
                 mask: !0,
@@ -199,6 +224,8 @@ impl State {
         let num_indices = INDICES.len() as u32;
         let tex_view = create_multisampled_framebuffer(&device, &config, 4);
         let camera_controller = camera::CameraController::new(4.0, 0.4);
+
+        let rp_tex = prepare_tex(&device, &config, &camera, &entity);
         Self {
             surface,
             device,
@@ -213,7 +240,10 @@ impl State {
             frame_count: 0,
             camera,
             camera_controller,
-            mouse_pressed: false
+            mouse_pressed: false,
+            entity,
+            rp_tex,
+            depth_texture
         }
     }
 
@@ -225,6 +255,8 @@ impl State {
             self.camera.projection.resize(new_size.width, new_size.height);
             self.surface.configure(&self.device, &self.config);
             self.tex_view = create_multisampled_framebuffer(&self.device, &self.config, 4);
+            self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
+
         }
     }
 
@@ -295,14 +327,30 @@ impl State {
                         store: true,
                     },
                 }],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
             });
+
+            render_pass.set_bind_group(0, &self.camera.camera_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.entity.texture_bind_group, &[]);
+
+
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.set_bind_group(0, &self.camera.camera_bind_group, &[]);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+
+            render_pass.set_pipeline(&self.rp_tex);
+            render_pass.set_vertex_buffer(0, self.entity.vertex_buffer.slice(..));
+            render_pass.set_index_buffer( self.entity.index_buffer.slice(..), self.entity.index_format);
+            render_pass.draw_indexed(0..self.entity.obj.index_data.len() as u32, 0, 0..1);
         }
 
         self.queue.submit(iter::once(encoder.finish()));
@@ -439,11 +487,3 @@ pub async fn run() {
     });
 }
 
-
-pub fn permute_unique(mut nums: Vec<i32>) -> Vec<Vec<i32>> {
-    nums.sort();
-    let len = nums.len();
-    let mut res = vec![];
-
-    res
-}

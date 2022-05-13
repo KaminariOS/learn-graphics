@@ -1,6 +1,6 @@
 use std::f32::consts::FRAC_PI_2;
 use std::time::Duration;
-use cgmath::{InnerSpace, Matrix4, perspective, Point3, Rad, Vector3};
+use cgmath::{InnerSpace, Matrix4, perspective, Point3, Rad, Vector3, Zero};
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalPosition;
 use winit::event::{ElementState, MouseScrollDelta, VirtualKeyCode};
@@ -108,6 +108,7 @@ impl CameraUniform {
 #[derive(Debug)]
 pub struct CameraView {
     pub position: Point3<f32>,
+    pub velocity: Vector3<f32>,
     yaw: Rad<f32>,
     pitch: Rad<f32>,
 }
@@ -124,6 +125,7 @@ impl CameraView {
     ) -> Self {
         Self {
             position: position.into(),
+            velocity: Vector3::zero(),
             yaw: yaw.into(),
             pitch: pitch.into(),
         }
@@ -255,7 +257,7 @@ impl CameraController {
     }
 
     pub fn update_camera(&mut self, camera: &mut CameraView, dt: Duration) {
-        let dt = dt.as_secs_f32();
+        let dt = dt.as_secs_f32() * 4.0;
 
         // Move forward/backward and left/right
         let (yaw_sin, yaw_cos) = camera.yaw.0.sin_cos();
@@ -275,7 +277,16 @@ impl CameraController {
 
         // Move up/down. Since we don't use roll, we can just
         // modify the y coordinate directly.
-        camera.position.y += (self.amount_up - self.amount_down) * self.speed * dt;
+        camera.velocity.y += (self.amount_up - self.amount_down) * self.speed - dt;
+        camera.velocity.y = camera.velocity.y.min(10.0);
+        self.amount_up = 0.0;
+        self.amount_down = 0.0;
+        camera.position.y += camera.velocity.y * dt;
+        println!("{:?} {}",camera.velocity.y, dt);
+        if camera.position.y < 0.0 {
+            camera.position.y = 0.0;
+            if camera.velocity.y.abs() > 0.1 { camera.velocity.y = - 0.5 * camera.velocity.y; }
+        }
 
         // Rotate
         camera.yaw += Rad(self.rotate_horizontal) * self.sensitivity * dt;
