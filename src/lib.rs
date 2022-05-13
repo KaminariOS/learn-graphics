@@ -50,7 +50,10 @@ impl Vertex {
     }
 }
 
-
+#[cfg(target_arch = "wasm32")]
+const SAMPLE_COUNT: u32 = 1;
+#[cfg(not(target_arch = "wasm32"))]
+const SAMPLE_COUNT: u32 = 4;
 
 const VERTICES: &[Vertex] = &[
     Vertex {
@@ -98,7 +101,6 @@ struct State {
 impl State {
     async fn new(window: &Window) -> Self {
         let size = window.inner_size();
-        log::info!("{:?}", size);
         // The instance is a handle to our GPU
         // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -201,7 +203,7 @@ impl State {
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 4,
+                count: SAMPLE_COUNT,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -222,7 +224,7 @@ impl State {
             usage: wgpu::BufferUsages::INDEX,
         });
         let num_indices = INDICES.len() as u32;
-        let tex_view = create_multisampled_framebuffer(&device, &config, 4);
+        let tex_view = create_multisampled_framebuffer(&device, &config);
         let camera_controller = camera::CameraController::new(4.0, 0.4);
 
         let rp_tex = prepare_tex(&device, &config, &camera, &entity);
@@ -254,7 +256,7 @@ impl State {
             self.config.height = new_size.height;
             self.camera.projection.resize(new_size.width, new_size.height);
             self.surface.configure(&self.device, &self.config);
-            self.tex_view = create_multisampled_framebuffer(&self.device, &self.config, 4);
+            self.tex_view = create_multisampled_framebuffer(&self.device, &self.config);
             self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
 
         }
@@ -315,8 +317,8 @@ impl State {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[wgpu::RenderPassColorAttachment {
-                    view: tex_view,
-                    resolve_target: Some(&view),
+                    view: if SAMPLE_COUNT == 1 { &view } else { tex_view },
+                    resolve_target: Some(&view).filter(|_| SAMPLE_COUNT != 1),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.0,
@@ -362,8 +364,7 @@ impl State {
 
 fn create_multisampled_framebuffer(
     device: &wgpu::Device,
-    config: &wgpu::SurfaceConfiguration,
-    sample_count: u32,
+    config: &wgpu::SurfaceConfiguration
 ) -> wgpu::TextureView {
     let multisampled_texture_extent = wgpu::Extent3d {
         width: config.width,
@@ -373,7 +374,7 @@ fn create_multisampled_framebuffer(
     let multisampled_frame_descriptor = &wgpu::TextureDescriptor {
         size: multisampled_texture_extent,
         mip_level_count: 1,
-        sample_count,
+        sample_count: SAMPLE_COUNT,
         dimension: wgpu::TextureDimension::D2,
         format: config.format,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
