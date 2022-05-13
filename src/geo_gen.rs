@@ -1,6 +1,7 @@
 use cgmath::SquareMatrix;
 use wgpu::{Device, RenderPipeline, SurfaceConfiguration};
 use wgpu::util::DeviceExt;
+use crate::SAMPLE_COUNT;
 use crate::{Camera, texture};
 
 #[repr(C)]
@@ -183,7 +184,7 @@ pub fn prepare_tex(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration, c
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState {
-            count: 4,
+            count: SAMPLE_COUNT,
             mask: !0,
             alpha_to_coverage_enabled: false,
         },

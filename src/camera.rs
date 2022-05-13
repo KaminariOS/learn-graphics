@@ -282,7 +282,6 @@ impl CameraController {
         self.amount_up = 0.0;
         self.amount_down = 0.0;
         camera.position.y += camera.velocity.y * dt;
-        println!("{:?} {}",camera.velocity.y, dt);
         if camera.position.y < 0.0 {
             camera.position.y = 0.0;
             if camera.velocity.y.abs() > 0.1 { camera.velocity.y = - 0.5 * camera.velocity.y; }
