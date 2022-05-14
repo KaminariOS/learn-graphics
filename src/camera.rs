@@ -189,6 +189,7 @@ pub struct CameraController {
     rotate_vertical: f32,
     scroll: f32,
     speed: f32,
+    speed_up: f32,
     sensitivity: f32,
 }
 
@@ -205,6 +206,7 @@ impl CameraController {
             rotate_vertical: 0.0,
             scroll: 0.0,
             speed,
+            speed_up: 1.0,
             sensitivity,
         }
     }
@@ -233,7 +235,12 @@ impl CameraController {
                 true
             }
             VirtualKeyCode::LShift => {
-                self.amount_down = amount;
+                // self.amount_down = amount;
+                self.speed_up = if state == ElementState::Pressed {
+                    2.0
+                } else {
+                    1.0
+                };
                 true
             }
             _ => false,
@@ -241,8 +248,9 @@ impl CameraController {
     }
 
     pub fn process_mouse(&mut self, mouse_dx: f64, mouse_dy: f64) {
-        self.rotate_horizontal = mouse_dx as f32;
-        self.rotate_vertical = mouse_dy as f32;
+        let sensitivity = 1.5;
+        self.rotate_horizontal = sensitivity * mouse_dx as f32;
+        self.rotate_vertical = sensitivity * mouse_dy as f32;
     }
 
     pub fn process_scroll(&mut self, delta: &MouseScrollDelta) {
@@ -263,8 +271,8 @@ impl CameraController {
         let (yaw_sin, yaw_cos) = camera.yaw.0.sin_cos();
         let forward = Vector3::new(yaw_cos, 0.0, yaw_sin).normalize();
         let right = Vector3::new(-yaw_sin, 0.0, yaw_cos).normalize();
-        camera.position += forward * (self.amount_forward - self.amount_backward) * self.speed * dt;
-        camera.position += right * (self.amount_right - self.amount_left) * self.speed * dt;
+        camera.position += forward * (self.amount_forward - self.amount_backward) * self.speed * dt * self.speed_up;
+        camera.position += self.speed_up * right * (self.amount_right - self.amount_left) * self.speed * dt;
 
         // Move in/out (aka. "zoom")
         // Note: this isn't an actual zoom. The camera's position
@@ -277,7 +285,7 @@ impl CameraController {
 
         // Move up/down. Since we don't use roll, we can just
         // modify the y coordinate directly.
-        camera.velocity.y += (self.amount_up - self.amount_down) * self.speed - dt;
+        camera.velocity.y += (self.amount_up - self.amount_down) * self.speed - 2.0 * dt;
         camera.velocity.y = camera.velocity.y.min(10.0);
         self.amount_up = 0.0;
         self.amount_down = 0.0;

@@ -1,4 +1,5 @@
 use std::iter;
+use cgmath::{One, Quaternion};
 
 mod camera;
 use camera::Camera;
@@ -7,6 +8,8 @@ mod geo_gen;
 use geo_gen::Entity;
 
 mod texture;
+mod world_space;
+mod model;
 
 use wgpu::util::DeviceExt;
 use winit::{
@@ -19,8 +22,9 @@ use winit::{
 use wasm_bindgen::prelude::*;
 use wgpu::RenderPipeline;
 use crate::camera::{CameraController, CameraView, Projection};
-use crate::geo_gen::prepare_tex;
+use crate::geo_gen::{prepare_tex, RenderGroup};
 use crate::texture::Texture;
+use crate::world_space::{Instances, InstanceTransform};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -95,7 +99,8 @@ struct State {
     mouse_pressed: bool,
     entity: Entity,
     rp_tex: RenderPipeline,
-    depth_texture: Texture
+    depth_texture: Texture,
+    render_groups: Vec<RenderGroup>
 }
 
 impl State {
@@ -151,7 +156,22 @@ impl State {
             Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 200.0),
             &device);
 
-        let entity = Entity::new(&device, &queue);
+        let obj = geo_gen::create_plane(80.0);
+        let entity = Entity::new(&device, &queue, obj, include_bytes!("albedo.png"));
+        let render_group = {
+            let obj = geo_gen::create_cube(10.0);
+            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("img.png"));
+            let instances = Instances::new(vec![InstanceTransform {
+                position: cgmath::Vector3::new(0.0, 0.0, -10.0),
+                rotation: Quaternion::one(),
+            }], &device);
+            let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+                label: Some("Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("geo.wgsl").into()),
+            });
+            RenderGroup::new(&device, &camera, entity_cube, instances, shader, &config)
+        };
+        let render_groups = vec![render_group];
 
         let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
@@ -245,7 +265,8 @@ impl State {
             mouse_pressed: false,
             entity,
             rp_tex,
-            depth_texture
+            depth_texture,
+            render_groups
         }
     }
 
@@ -262,7 +283,7 @@ impl State {
         }
     }
 
-    fn input(&mut self, event: &WindowEvent) -> bool {
+    fn input(&mut self, event: &WindowEvent, window: &Window) -> bool {
         match event {
             WindowEvent::KeyboardInput {
                 input:
@@ -279,10 +300,11 @@ impl State {
             }
             WindowEvent::MouseInput {
                 button: MouseButton::Left,
-                state,
                 ..
             } => {
-                self.mouse_pressed = *state == ElementState::Pressed;
+                self.mouse_pressed = true;
+                window.set_cursor_grab(true).ok();
+                window.set_cursor_visible(false);
                 true
             }
             _ => false,
@@ -298,7 +320,7 @@ impl State {
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         self.frame_count += 1;
-        println!("frame count: {}", self.frame_count);
+        // println!("frame count: {}", self.frame_count);
 
         let output = self.surface.get_current_texture()?;
         let view = output
@@ -342,8 +364,6 @@ impl State {
             render_pass.set_bind_group(0, &self.camera.camera_bind_group, &[]);
             render_pass.set_bind_group(1, &self.entity.texture_bind_group, &[]);
 
-
-
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
@@ -353,6 +373,7 @@ impl State {
             render_pass.set_vertex_buffer(0, self.entity.vertex_buffer.slice(..));
             render_pass.set_index_buffer( self.entity.index_buffer.slice(..), self.entity.index_format);
             render_pass.draw_indexed(0..self.entity.obj.index_data.len() as u32, 0, 0..1);
+            self.render_groups.iter().for_each(|x| x.render(&mut render_pass));
         }
 
         self.queue.submit(iter::once(encoder.finish()));
@@ -445,11 +466,12 @@ pub async fn run() {
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } if window_id == window.id() && !state.input(event) => {
+            } if window_id == window.id() && !state.input(event, &window) => {
                 match event {
                     #[cfg(not(target_arch="wasm32"))]
                     WindowEvent::CloseRequested
-                    | WindowEvent::KeyboardInput {
+                     => *control_flow = ControlFlow::Exit,
+                    WindowEvent::KeyboardInput {
                         input:
                         KeyboardInput {
                             state: ElementState::Pressed,
@@ -457,7 +479,11 @@ pub async fn run() {
                             ..
                         },
                         ..
-                    } => *control_flow = ControlFlow::Exit,
+                    } => {
+                        window.set_cursor_grab(false).ok();
+                        window.set_cursor_visible(true);
+                        state.mouse_pressed = false;
+                    }
                     WindowEvent::Resized(physical_size) => {
                         state.resize(*physical_size);
                     }
