@@ -215,6 +215,7 @@ impl State {
             }
             WindowEvent::MouseInput {
                 button: MouseButton::Left,
+                state: ElementState::Pressed,
                 ..
             } => {
                 self.mouse_pressed = true;
