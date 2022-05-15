@@ -79,7 +79,11 @@ impl State {
                     // WebGL doesn't support all of wgpu's features, so if
                     // we're building for the web we'll have to disable some.
                     limits: if cfg!(target_arch = "wasm32") {
-                        wgpu::Limits::downlevel_webgl2_defaults()
+                        {
+                            let mut limit = wgpu::Limits::downlevel_webgl2_defaults();
+                            limit.max_texture_dimension_2d = 4096;
+                            limit
+                        }
                     } else {
                         wgpu::Limits::default()
                     },
@@ -325,7 +329,7 @@ pub async fn run() {
     }
 
     let event_loop = EventLoop::new();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let mut window = WindowBuilder::new();
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -339,20 +343,24 @@ pub async fn run() {
             val.ok().and_then(|x| x.as_f64()).unwrap()
         }
         let (width, height) = (get_size(win.inner_width()), get_size(win.inner_height()));
-        log::info!("Window size: {:?} {:?}", width, height);
-        window.set_inner_size(LogicalSize::new(height, height));
+        log::warn!("Window size: {:?} {:?}", width, height);
+        // window.set_inner_size(LogicalSize::new(width, height));
+        use wasm_bindgen::JsCast;
+        let canvas =
         web_sys::window()
             .and_then(|win| win.document())
             .and_then(|doc| {
                 let dst = doc.get_element_by_id("wasm-example")?;
-                let canvas = web_sys::Element::from(window.canvas());
-
-                dst.append_child(&canvas).ok()?;
-                Some(())
-            })
-            .expect("Couldn't append canvas to document body.");
+                dst
+                    .dyn_into::<web_sys::HtmlCanvasElement>()
+                    .map_err(|_| ()).ok()
+            });
+        use winit::platform::web::WindowBuilderExtWebSys;
+        window = window.with_inner_size(LogicalSize::new(width, height)).with_canvas(canvas);
+            // .expect("Couldn't append canvas to document body.");
     }
 
+    let window = window.build(&event_loop).unwrap();
     // State::new uses async code, so we're going to wait for it to finish
     let mut state = State::new(&window).await;
 
