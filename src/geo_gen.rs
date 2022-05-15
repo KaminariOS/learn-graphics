@@ -1,5 +1,5 @@
 use std::ops::Range;
-use wgpu::{Device, Queue, RenderPipeline, ShaderModule, ShaderModuleDescriptor, SurfaceConfiguration};
+use wgpu::{Device, Queue, RenderPipeline, ShaderModule, SurfaceConfiguration};
 use wgpu::util::DeviceExt;
 use crate::{SAMPLE_COUNT, world_space};
 use crate::{Camera, texture};
@@ -39,23 +39,6 @@ impl Vertex {
 pub struct GeoObj {
     vertex_data: Vec<Vertex>,
     pub(crate) index_data: Vec<u16>,
-    filename: String,
-}
-
-pub(crate) fn create_plane(size: f32) -> GeoObj {
-    let vertex_data = vec![
-        Vertex::new([size, -10.0, size], [10.0, 0.0]),
-        Vertex::new([size, -10.0, -2.0 *size], [10.0, 10.0]),
-        Vertex::new([-size, -10.0, size], [0.0, 0.0]),
-        Vertex::new([-size, -10.0, -2.0 * size], [0.0, 10.0]),
-    ];
-    let index_data = vec![0, 1, 2, 2, 1, 3];
-
-    GeoObj {
-        vertex_data,
-        index_data,
-        filename: "happy-tree.png".into(),
-    }
 }
 
 pub struct Entity {
@@ -79,7 +62,7 @@ impl Entity {
             contents: bytemuck::cast_slice(&obj.index_data),
             usage: wgpu::BufferUsages::INDEX,
         });
-        let diffuse_texture = texture::Texture::from_bytes(device, queue, diffuse_bytes, &obj.filename).unwrap();
+        let diffuse_texture = texture::Texture::from_bytes(device, queue, diffuse_bytes, "Todo").unwrap();
         let texture_bind_group_layout =
             device.create_bind_group_layout(&texture::Texture::desc());
         let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -111,68 +94,6 @@ impl Entity {
     }
 }
 
-pub fn prepare_tex(device: &Device, config: &SurfaceConfiguration, camera: &Camera, entity: &Entity) -> RenderPipeline{
-    let shader = device.create_shader_module(&ShaderModuleDescriptor {
-        label: Some("Shader_tex"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("tex.wgsl").into()),
-    });
-    let render_pipeline_layout =
-        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&camera.camera_bind_group_layout, &entity.texture_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-    let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Render Pipeline"),
-        layout: Some(&render_pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vs_main",
-            buffers: &[Vertex::desc()],
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: "fs_main",
-            targets: &[wgpu::ColorTargetState {
-                format: config.format,
-                blend: Some(wgpu::BlendState {
-                    color: wgpu::BlendComponent::REPLACE,
-                    alpha: wgpu::BlendComponent::REPLACE,
-                }),
-                write_mask: wgpu::ColorWrites::ALL,
-            }],
-        }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            strip_index_format: None,
-            front_face: wgpu::FrontFace::Ccw,
-            cull_mode: None,
-            // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-            polygon_mode: wgpu::PolygonMode::Fill,
-            // Requires Features::DEPTH_CLIP_CONTROL
-            unclipped_depth: false,
-            // Requires Features::CONSERVATIVE_RASTERIZATION
-            conservative: false,
-        },
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: texture::Texture::DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::Less, // 1.
-            stencil: wgpu::StencilState::default(), // 2.
-            bias: wgpu::DepthBiasState::default(),
-        }),
-        multisample: wgpu::MultisampleState {
-            count: SAMPLE_COUNT,
-            mask: !0,
-            alpha_to_coverage_enabled: false,
-        },
-        // If the pipeline will be used with a multiview render pass, this
-        // indicates how many array layers the attachments will have.
-        multiview: None,
-    });
-    render_pipeline
-}
-
 pub struct RenderGroup {
     pub(crate) entity: Entity,
     instances: world_space::Instances,
@@ -180,7 +101,7 @@ pub struct RenderGroup {
 }
 
 impl RenderGroup {
-    pub fn new(device: &wgpu::Device, camera: &Camera, entity: Entity, instances: world_space::Instances, shader: ShaderModule, config: &wgpu::SurfaceConfiguration) -> Self {
+    pub fn new(device: &wgpu::Device, camera: &Camera, entity: Entity, instances: world_space::Instances, shader: ShaderModule, config: &SurfaceConfiguration) -> Self {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
@@ -243,8 +164,6 @@ impl RenderGroup {
         }
     }
 
-
-
     pub fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(1, &self.entity.texture_bind_group, &[]);
@@ -255,17 +174,35 @@ impl RenderGroup {
     }
 }
 
-pub fn create_cube(size: f32) -> GeoObj {
+pub fn create_square(height: f32, width: f32) -> GeoObj {
+    let half_width = width / 2.0;
+    let half_height = height / 2.0;
     let vertex_data = vec![
-        Vertex::new([size, size, 0.0], [1.0, 1.0]),
-        Vertex::new([-size, size, 0.0], [0.0, 1.0]),
-        Vertex::new([-size, -size, 0.0], [0.0, 0.0]),
-        Vertex::new([size, -size, 0.0], [1.0, 0.0]),
+        Vertex::new([half_width, half_height, 0.0], [1.0, 1.0]),
+        Vertex::new([-half_width, half_height, 0.0], [0.0, 1.0]),
+        Vertex::new([-half_width, -half_height, 0.0], [0.0, 0.0]),
+        Vertex::new([half_width, -half_height, 0.0], [1.0, 0.0]),
     ];
     let index_data = vec![0, 1, 2, 2, 3, 0];
     GeoObj {
         vertex_data,
         index_data,
-        filename: "fucj".into()
+    }
+}
+
+pub fn create_floor(height: f32, width: f32) -> GeoObj {
+    let half_width = width / 2.0;
+    let half_height = height / 2.0;
+    let mul = 10.0;
+    let vertex_data = vec![
+        Vertex::new([half_width, half_height, 0.0], [mul, mul]),
+        Vertex::new([-half_width, half_height, 0.0], [0.0, mul]),
+        Vertex::new([-half_width, -half_height, 0.0], [0.0, 0.0]),
+        Vertex::new([half_width, -half_height, 0.0], [mul, 0.0]),
+    ];
+    let index_data = vec![0, 1, 2, 2, 3, 0];
+    GeoObj {
+        vertex_data,
+        index_data,
     }
 }

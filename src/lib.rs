@@ -1,5 +1,6 @@
 use std::iter;
-use cgmath::{One, Quaternion};
+use cgmath::prelude::*;
+use cgmath::{Quaternion, Vector3};
 
 mod camera;
 use camera::Camera;
@@ -10,8 +11,10 @@ use geo_gen::Entity;
 mod texture;
 mod world_space;
 mod model;
+mod resources;
 
-use wgpu::util::DeviceExt;
+use model::ModelRenderGroup;
+
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -20,9 +23,8 @@ use winit::{
 
 #[cfg(target_arch="wasm32")]
 use wasm_bindgen::prelude::*;
-use wgpu::RenderPipeline;
 use crate::camera::{CameraController, CameraView, Projection};
-use crate::geo_gen::{prepare_tex, RenderGroup};
+use crate::geo_gen::{RenderGroup};
 use crate::texture::Texture;
 use crate::world_space::{Instances, InstanceTransform};
 
@@ -32,6 +34,8 @@ const SAMPLE_COUNT: u32 = 1;
 #[cfg(not(target_arch = "wasm32"))]
 const SAMPLE_COUNT: u32 = 4;
 
+
+const FLOOR_HEIGHT: f32 = -10.0;
 
 struct State {
     surface: wgpu::Surface,
@@ -46,10 +50,9 @@ struct State {
     camera: Camera,
     camera_controller: CameraController,
     mouse_pressed: bool,
-    entity: Entity,
-    rp_tex: RenderPipeline,
     depth_texture: Texture,
-    render_groups: Vec<RenderGroup>
+    render_groups: Vec<RenderGroup>,
+    model_render_groups: Vec<ModelRenderGroup>
 }
 
 impl State {
@@ -97,32 +100,74 @@ impl State {
 
         let camera = Camera::new(
             CameraView::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0)),
-            Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 200.0),
+            Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 400.0),
             &device);
 
-        let obj = geo_gen::create_plane(80.0);
-        let entity = Entity::new(&device, &queue, obj, include_bytes!("albedo.png"));
         let render_group = {
-            let obj = geo_gen::create_cube(10.0);
+            let height = 26.0;
+            let half_height = height / 2.0;
+            let obj = geo_gen::create_square(height, 40.0);
             let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("img.png"));
-            let instances = Instances::new(vec![InstanceTransform {
-                position: cgmath::Vector3::new(0.0, 0.0, -10.0),
+            let instances = Instances::new(vec![
+                InstanceTransform {
+                position: Vector3::new(0.0, half_height + FLOOR_HEIGHT, -40.0),
                 rotation: Quaternion::one(),
-            }], &device);
+            },
+                InstanceTransform {
+                    position: Vector3::new(10.0, half_height + FLOOR_HEIGHT, 0.0),
+                    rotation: Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(-90.0))
+                }
+            ], &device);
             let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
                 label: Some("Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("geo.wgsl").into()),
             });
             RenderGroup::new(&device, &camera, entity_cube, instances, shader, &config)
         };
-        let render_groups = vec![render_group];
+        let render_group_ceil = {
+            let obj = geo_gen::create_floor(280.0, 280.0);
+            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("albedo.png"));
+            let instances = Instances::new(vec![
+                InstanceTransform {
+                    position: Vector3::new(00.0, FLOOR_HEIGHT, 0.0),
+                    rotation: Quaternion::from_axis_angle(cgmath::Vector3::unit_x(), cgmath::Deg(-90.0))
+                }
+            ], &device);
+            let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+                label: Some("Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("geo.wgsl").into()),
+            });
+            RenderGroup::new(&device, &camera, entity_cube, instances, shader, &config)
+        };
+        let render_groups = vec![render_group, render_group_ceil];
+
+        let model_render_group = {
+            log::warn!("Load model");
+            let obj_model = resources::load_model(
+                "girl.obj",
+                &device,
+                &queue,
+            ).await.unwrap();
+            let instances = Instances::new(vec![
+                InstanceTransform {
+                    position: Vector3::new(-20.0, -10.0, 0.0),
+                    rotation: Quaternion::one()
+                }
+            ], &device);
+            let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+                label: Some("Model Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("tex.wgsl").into()),
+            });
+            ModelRenderGroup::new(obj_model, instances, &device, &camera, shader, &config)
+        };
+        let model_render_groups = vec![model_render_group];
+
 
         let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
         let tex_view = create_multisampled_framebuffer(&device, &config);
         let camera_controller = camera::CameraController::new(4.0, 0.4);
 
-        let rp_tex = prepare_tex(&device, &config, &camera, &entity);
         Self {
             surface,
             device,
@@ -134,10 +179,9 @@ impl State {
             camera,
             camera_controller,
             mouse_pressed: false,
-            entity,
-            rp_tex,
             depth_texture,
-            render_groups
+            render_groups,
+            model_render_groups
         }
     }
 
@@ -233,13 +277,8 @@ impl State {
             });
 
             render_pass.set_bind_group(0, &self.camera.camera_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.entity.texture_bind_group, &[]);
-
-            render_pass.set_pipeline(&self.rp_tex);
-            render_pass.set_vertex_buffer(0, self.entity.vertex_buffer.slice(..));
-            render_pass.set_index_buffer( self.entity.index_buffer.slice(..), self.entity.index_format);
-            render_pass.draw_indexed(0..self.entity.obj.index_data.len() as u32, 0, 0..1);
             self.render_groups.iter().for_each(|x| x.render(&mut render_pass));
+            self.model_render_groups.iter().for_each(|x| x.render(&mut render_pass))
         }
 
         self.queue.submit(iter::once(encoder.finish()));

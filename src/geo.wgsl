@@ -32,7 +32,7 @@ fn vs_main(
         instance.model_matrix_0,
         instance.model_matrix_1,
         instance.model_matrix_2,
-        instance.model_matrix_3,
+        instance.model_matrix_3
     );
     var v_out: VertexOutput;
     v_out.tex_coords = model.tex_coords;

@@ -89,8 +89,8 @@ impl Instances {
         0..self.instance_transforms.len() as u32
     }
 
-    pub fn update_buffer(&mut self, device: &wgpu::Device) {
-        let instance_buffer = Self::get_raw_and_buffer(&self.instance_transforms, device);
-        self.instance_buffer = instance_buffer;
-    }
+    // pub fn update_buffer(&mut self, device: &wgpu::Device) {
+    //     let instance_buffer = Self::get_raw_and_buffer(&self.instance_transforms, device);
+    //     self.instance_buffer = instance_buffer;
+    // }
 }
