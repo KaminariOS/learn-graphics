@@ -7,13 +7,14 @@ use crate::{Camera, texture};
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
-    position: [f32; 3],
-    tex_coords: [f32; 2],
+    pub(crate) position: [f32; 3],
+    pub(crate) tex_coords: [f32; 2],
+    pub(crate) normal: [f32; 3]
 }
 
 impl Vertex {
-    fn new(position: [f32; 3], tex_coords: [f32; 2]) -> Self {
-        Vertex {position, tex_coords}
+    fn new(position: [f32; 3], tex_coords: [f32; 2], normal: [f32; 3]) -> Self {
+        Vertex {position, tex_coords, normal}
     }
     pub(crate) fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         use std::mem;
@@ -30,6 +31,11 @@ impl Vertex {
                     offset: mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x2,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 5]>() as wgpu::BufferAddress,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x3,
                 },
             ],
         }
@@ -120,7 +126,7 @@ impl GeoRenderGroup {
             });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
+            label: Some("Entity Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -170,10 +176,10 @@ pub fn create_square(height: f32, width: f32, device: &Device) -> GeoObj {
     let half_width = width / 2.0;
     let half_height = height / 2.0;
     let vertex_data = vec![
-        Vertex::new([half_width, half_height, 0.0], [1.0, 1.0]),
-        Vertex::new([-half_width, half_height, 0.0], [0.0, 1.0]),
-        Vertex::new([-half_width, -half_height, 0.0], [0.0, 0.0]),
-        Vertex::new([half_width, -half_height, 0.0], [1.0, 0.0]),
+        Vertex::new([half_width, half_height, 0.0], [1.0, 1.0], [0., 0., 1.]),
+        Vertex::new([-half_width, half_height, 0.0], [0.0, 1.0], [0., 0., 1.]),
+        Vertex::new([-half_width, -half_height, 0.0], [0.0, 0.0], [0., 0., 1.]),
+        Vertex::new([half_width, -half_height, 0.0], [1.0, 0.0], [0., 0., 1.]),
     ];
     let index_data = vec![0, 1, 2, 2, 3, 0];
     GeoObj::new(
@@ -188,10 +194,10 @@ pub fn create_floor(height: f32, width: f32, device: &Device) -> GeoObj {
     let half_height = height / 2.0;
     let mul = 10.0;
     let vertex_data = vec![
-        Vertex::new([half_width, half_height, 0.0], [mul, mul]),
-        Vertex::new([-half_width, half_height, 0.0], [0.0, mul]),
-        Vertex::new([-half_width, -half_height, 0.0], [0.0, 0.0]),
-        Vertex::new([half_width, -half_height, 0.0], [mul, 0.0]),
+        Vertex::new([half_width, half_height, 0.0], [mul, mul], [0., 0., 1.]),
+        Vertex::new([-half_width, half_height, 0.0], [0.0, mul], [0., 0., 1.]),
+        Vertex::new([-half_width, -half_height, 0.0], [0.0, 0.0], [0., 0., 1.]),
+        Vertex::new([half_width, -half_height, 0.0], [mul, 0.0], [0., 0., 1.]),
     ];
     let index_data = vec![0, 1, 2, 2, 3, 0];
     GeoObj::new(
@@ -204,14 +210,14 @@ pub fn create_floor(height: f32, width: f32, device: &Device) -> GeoObj {
 pub fn create_cube(size: f32, device: &Device) -> GeoObj {
    let half = size / 2.;
     let vertex_data = vec![
-       Vertex::new([-half, -half, half], [0., 0.]),
-       Vertex::new([half, -half, half], [0., 0.]),
-       Vertex::new([half, half, half], [0., 0.]),
-       Vertex::new([-half, half, half], [0., 0.]),
-       Vertex::new([-half, -half, -half], [0., 0.]),
-       Vertex::new([half, -half, -half], [0., 0.]),
-       Vertex::new([half, half, -half], [0., 0.]),
-       Vertex::new([-half, half, -half], [0., 0.]),
+       Vertex::new([-half, -half, half], [0., 0.], [0., 0., 1.]),
+       Vertex::new([half, -half, half], [0., 0.],[0., 0., 1.]),
+       Vertex::new([half, half, half], [0., 0.], [0., 0., 1.]),
+       Vertex::new([-half, half, half], [0., 0.], [0., 0., 1.]),
+       Vertex::new([-half, -half, -half], [0., 0.], [0., 0., 1.]),
+       Vertex::new([half, -half, -half], [0., 0.], [0., 0., 1.]),
+       Vertex::new([half, half, -half], [0., 0.], [0., 0., 1.]),
+       Vertex::new([-half, half, -half], [0., 0.],[0., 0., 1.]),
     ];
     let index_data = vec![
         //Front

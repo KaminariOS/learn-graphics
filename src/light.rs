@@ -1,3 +1,5 @@
+use std::time::Duration;
+use cgmath::{Matrix3, Rotation3};
 use wgpu::{Device, RenderPass, ShaderModule, SurfaceConfiguration};
 use wgpu::util::DeviceExt;
 use crate::{Camera, geo_gen, MULTI_SAMPLE, PRIMITIVE, RenderGroup, texture};
@@ -15,7 +17,7 @@ pub struct LightUniform {
 impl Default for LightUniform {
     fn default() -> Self {
        Self {
-           position: [0., 10., -10.0, 1.],
+           position: [40., 10., -10.0, 1.],
            color: [1., 1., 1., 1.]
        }
     }
@@ -68,7 +70,7 @@ impl LightRenderGroup {
             push_constant_ranges: &[],
         });
         let light_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
+            label: Some("Light Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -100,6 +102,13 @@ impl LightRenderGroup {
             light_render_pipeline,
             obj: geo_gen::create_cube(10.0, device)
         }
+    }
+
+    pub fn update_light(&mut self, dt: Duration, queue: &wgpu::Queue) {
+        let rotation: cgmath::Matrix4<f32> = cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(-100. * dt.as_secs_f32())).into();
+        let pos = cgmath::Vector4::from(self.light_uniform.position);
+        self.light_uniform.position = (rotation * pos).into();
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.light_uniform]));
     }
 
 }

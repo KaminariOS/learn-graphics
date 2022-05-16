@@ -4,6 +4,7 @@ use cfg_if::cfg_if;
 use wgpu::util::DeviceExt;
 
 use crate::{model, texture};
+use crate::geo_gen::Vertex;
 use crate::model::Material;
 
 #[cfg(target_arch = "wasm32")]
@@ -121,7 +122,7 @@ pub async fn load_model(
         .into_iter()
         .map(|m| {
             let vertices = (0..m.mesh.positions.len() / 3)
-                .map(|i| model::ModelVertex {
+                .map(|i| Vertex {
                     position: [
                         scale * m.mesh.positions[i * 3],
                         scale * m.mesh.positions[i * 3 + 1],

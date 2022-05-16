@@ -184,7 +184,7 @@ impl State {
             ).await.unwrap();
             let instances = Instances::new(vec![
                 InstanceTransform {
-                    position: Vector3::new(-20.0, -12.0, 0.0),
+                    position: Vector3::new(-20.0, -11.0, 0.0),
                     rotation: Quaternion::one()
                 }
             ], &device);
@@ -269,6 +269,7 @@ impl State {
     fn update(&mut self, dt: std::time::Duration) {
         self.camera_controller.update_camera(&mut self.camera.view, dt);
         self.camera.update_camera(&self.queue);
+        self.light_render_group.update_light(dt, &self.queue);
         // Update the light
     }
 
@@ -462,4 +463,3 @@ pub async fn run() {
         }
     });
 }
-
