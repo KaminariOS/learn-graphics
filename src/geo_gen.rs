@@ -1,7 +1,7 @@
 use std::ops::Range;
-use wgpu::{Device, IndexFormat, Queue, RenderPipeline, ShaderModule, SurfaceConfiguration};
+use wgpu::{BindGroupLayout, Device, IndexFormat, Queue, RenderPipeline, ShaderModule, SurfaceConfiguration};
 use wgpu::util::DeviceExt;
-use crate::{MULTI_SAMPLE, PRIMITIVE, RenderGroup, world_space};
+use crate::{Instances, LightRenderGroup, MULTI_SAMPLE, PRIMITIVE, RenderGroup, world_space};
 use crate::{Camera, texture};
 
 #[repr(C)]
@@ -111,11 +111,11 @@ pub struct GeoRenderGroup {
 }
 
 impl GeoRenderGroup {
-    pub fn new(device: &wgpu::Device, camera: &Camera, entity: Entity, instances: world_space::Instances, shader: ShaderModule, config: &SurfaceConfiguration) -> Self {
+    pub fn new(device: &wgpu::Device, camera: &Camera, entity: Entity, instances: world_space::Instances, shader: ShaderModule, config: &SurfaceConfiguration, light_render_group: &LightRenderGroup) -> Self {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera.camera_bind_group_layout, &entity.texture_bind_group_layout],
+                bind_group_layouts: &[&camera.camera_bind_group_layout, &light_render_group.light_bind_group_layout, &entity.texture_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -159,7 +159,7 @@ impl GeoRenderGroup {
 impl RenderGroup for GeoRenderGroup {
     fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(1, &self.entity.texture_bind_group, &[]);
+        render_pass.set_bind_group(2, &self.entity.texture_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.entity.obj.vertex_buffer.slice(..));
         render_pass.set_vertex_buffer(1, self.instances.instance_buffer.slice(..));
         render_pass.set_index_buffer(self.entity.obj.index_buffer.slice(..), GeoObj::INDEX_FORMAT);

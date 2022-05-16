@@ -75,6 +75,7 @@ struct State {
     mouse_pressed: bool,
     depth_texture: Texture,
     render_groups: Vec<Box<dyn RenderGroup>>,
+    light_render_group: LightRenderGroup
 }
 
 impl State {
@@ -127,8 +128,16 @@ impl State {
         let camera = Camera::new(
             CameraView::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0)),
             Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 400.0),
-            &device);
-
+            &device,
+        );
+        let light_render_group = {
+            let light_uniform = LightUniform::default();
+            let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+                label: Some("Light Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("light.wgsl").into()),
+            });
+            LightRenderGroup::new(&device, light_uniform, shader, &camera, &config)
+        };
         let render_group = {
             let height = 26.0;
             let half_height = height / 2.0;
@@ -148,7 +157,7 @@ impl State {
                 label: Some("Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("geo.wgsl").into()),
             });
-            GeoRenderGroup::new(&device, &camera, entity_cube, instances, shader, &config)
+            GeoRenderGroup::new(&device, &camera, entity_cube, instances, shader, &config, &light_render_group)
         };
         let render_group_ceil = {
             let obj = geo_gen::create_floor(280.0, 280.0, &device);
@@ -163,7 +172,7 @@ impl State {
                 label: Some("Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("geo.wgsl").into()),
             });
-            GeoRenderGroup::new(&device, &camera, entity_cube, instances, shader, &config)
+            GeoRenderGroup::new(&device, &camera, entity_cube, instances, shader, &config, &light_render_group)
         };
         let model_render_group = {
             log::warn!("Load model");
@@ -171,6 +180,7 @@ impl State {
                 "girl.obj",
                 &device,
                 &queue,
+                40.0
             ).await.unwrap();
             let instances = Instances::new(vec![
                 InstanceTransform {
@@ -180,24 +190,16 @@ impl State {
             ], &device);
             let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
                 label: Some("Model Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("tex.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(include_str!("geo.wgsl").into()),
             });
-            ModelRenderGroup::new(obj_model, instances, &device, &camera, shader, &config)
+            ModelRenderGroup::new(obj_model, instances, &device, &camera, shader, &config, &light_render_group)
         };
-        let light_render_group = {
-            let light_uniform = LightUniform::default();
-            let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-                label: Some("Light Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("light.wgsl").into()),
-            });
-            LightRenderGroup::new(&device, light_uniform, shader, &camera, &config)
-        };
+
 
         let render_groups: Vec<Box<dyn RenderGroup>> = vec![
             Box::new(render_group),
             Box::new(render_group_ceil) ,
             Box::new(model_render_group),
-            Box::new(light_render_group)
         ];
         let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
@@ -217,6 +219,7 @@ impl State {
             mouse_pressed: false,
             depth_texture,
             render_groups,
+            light_render_group
         }
     }
 
@@ -313,6 +316,8 @@ impl State {
             });
 
             render_pass.set_bind_group(0, &self.camera.camera_bind_group, &[]);
+            self.light_render_group.render(&mut render_pass);
+
             self.render_groups.iter().for_each(|x| x.render(&mut render_pass));
         }
 

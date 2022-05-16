@@ -7,6 +7,13 @@ struct CameraUniform {
 [[group(0), binding(0)]] // 1.
 var<uniform> camera: CameraUniform;
 
+struct Light {
+    position: vec4<f32>;
+    color: vec4<f32>;
+};
+[[group(1), binding(0)]]
+var<uniform> light: Light;
+
 struct VertexInput {
     [[location(0)]] position: vec3<f32>;
     [[location(1)]] tex_coords: vec2<f32>;
@@ -42,13 +49,15 @@ fn vs_main(
 
 // Fragment shader
 
-[[group(1), binding(0)]]
+[[group(2), binding(0)]]
 var t_diffuse: texture_2d<f32>;
-[[group(1), binding(1)]]
+[[group(2), binding(1)]]
 var s_diffuse: sampler;
 
 [[stage(fragment)]]
 fn fs_main(f_in: VertexOutput) -> [[location(0)]] vec4<f32> {
+     let ambient_strength = 0.1;
+     let ambient_color = light.color.xyz * ambient_strength;
     let v_tex = vec2<f32>(f_in.tex_coords.x, 1.0 - f_in.tex_coords.y);
     return textureSample(t_diffuse, s_diffuse, v_tex);
 }

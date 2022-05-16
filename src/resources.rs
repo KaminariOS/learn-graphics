@@ -71,6 +71,7 @@ pub async fn load_model(
     file_name: &str,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
+    scale: f32
 ) -> anyhow::Result<model::Model> {
     let obj_text = load_string(file_name).await?;
     let obj_cursor = Cursor::new(obj_text);
@@ -122,9 +123,9 @@ pub async fn load_model(
             let vertices = (0..m.mesh.positions.len() / 3)
                 .map(|i| model::ModelVertex {
                     position: [
-                        m.mesh.positions[i * 3],
-                        m.mesh.positions[i * 3 + 1],
-                        m.mesh.positions[i * 3 + 2],
+                        scale * m.mesh.positions[i * 3],
+                        scale * m.mesh.positions[i * 3 + 1],
+                        scale * m.mesh.positions[i * 3 + 2],
                     ],
                     tex_coords: [m.mesh.texcoords[i * 2], m.mesh.texcoords[i * 2 + 1]],
                     normal: [

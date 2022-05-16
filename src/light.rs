@@ -24,7 +24,7 @@ impl Default for LightUniform {
 pub struct LightRenderGroup {
     light_uniform: LightUniform,
     buffer: wgpu::Buffer,
-    light_bind_group_layout: wgpu::BindGroupLayout,
+    pub light_bind_group_layout: wgpu::BindGroupLayout,
     light_bind_group: wgpu::BindGroup,
     light_render_pipeline: wgpu::RenderPipeline,
     obj: GeoObj

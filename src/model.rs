@@ -1,7 +1,7 @@
 use std::ops::Range;
 use wgpu::{BindGroupLayout, Device, RenderPass, RenderPipeline, ShaderModule, SurfaceConfiguration};
 
-use crate::{Camera, MULTI_SAMPLE, PRIMITIVE, RenderGroup, texture, world_space};
+use crate::{Camera, Instances, LightRenderGroup, MULTI_SAMPLE, PRIMITIVE, RenderGroup, texture, world_space};
 
 pub trait Vertex {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;
@@ -95,11 +95,11 @@ pub(crate) struct ModelRenderGroup {
 }
 
 impl ModelRenderGroup {
-    pub fn new(model: Model, instances: world_space::Instances, device: &Device, camera: &Camera, shader: ShaderModule, config: &SurfaceConfiguration) -> Self {
+    pub fn new(model: Model, instances: world_space::Instances, device: &Device, camera: &Camera, shader: ShaderModule, config: &SurfaceConfiguration, light_render_group: &LightRenderGroup) -> Self {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera.camera_bind_group_layout, &model.texture_bind_group_layout],
+                bind_group_layouts: &[&camera.camera_bind_group_layout, &light_render_group.light_bind_group_layout, &model.texture_bind_group_layout],
                 push_constant_ranges: &[],
             });
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -144,7 +144,7 @@ impl ModelRenderGroup {
     ) {
         render_pass.set_vertex_buffer(1, mesh.vertex_buffer.slice(..));
         render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        render_pass.set_bind_group(1, &material.bind_group, &[]);
+        render_pass.set_bind_group(2, &material.bind_group, &[]);
         render_pass.draw_indexed(0..mesh.num_elements, 0, instances);
     }
 }
