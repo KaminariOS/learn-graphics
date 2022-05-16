@@ -14,6 +14,16 @@ impl Texture {
 
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
+    pub fn create_depth_state() -> Option<wgpu::DepthStencilState> {
+         Some(wgpu::DepthStencilState {
+            format: Texture::DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less, // 1.
+            stencil: wgpu::StencilState::default(), // 2.
+            bias: wgpu::DepthBiasState::default(),
+        })
+    }
+
     pub fn create_depth_texture(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,

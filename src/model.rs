@@ -1,7 +1,7 @@
 use std::ops::Range;
 use wgpu::{BindGroupLayout, Device, RenderPass, RenderPipeline, ShaderModule, SurfaceConfiguration};
 
-use crate::{Camera, SAMPLE_COUNT, texture, world_space};
+use crate::{Camera, MULTI_SAMPLE, PRIMITIVE, RenderGroup, texture, world_space};
 
 pub trait Vertex {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;
@@ -122,30 +122,9 @@ impl ModelRenderGroup {
                     write_mask: wgpu::ColorWrites::ALL,
                 }],
             }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-                polygon_mode: wgpu::PolygonMode::Fill,
-                // Requires Features::DEPTH_CLIP_CONTROL
-                unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: texture::Texture::DEPTH_FORMAT,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: SAMPLE_COUNT,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
+            primitive: PRIMITIVE,
+            depth_stencil: texture::Texture::create_depth_state(),
+            multisample: MULTI_SAMPLE,
             // If the pipeline will be used with a multiview render pass, this
             // indicates how many array layers the attachments will have.
             multiview: None,
@@ -154,14 +133,6 @@ impl ModelRenderGroup {
             model,
             instances,
             render_pipeline
-        }
-    }
-    pub fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>) {
-        render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_vertex_buffer(0, self.instances.instance_buffer.slice(..));
-        for mesh in &self.model.meshes {
-            let material = &self.model.materials[mesh.material];
-            Self::draw_mesh_instanced(mesh, material, self.instances.get_instance_range(), render_pass);
         }
     }
 
@@ -178,4 +149,15 @@ impl ModelRenderGroup {
     }
 }
 
+
+impl RenderGroup for ModelRenderGroup {
+    fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>) {
+        render_pass.set_pipeline(&self.render_pipeline);
+        render_pass.set_vertex_buffer(0, self.instances.instance_buffer.slice(..));
+        for mesh in &self.model.meshes {
+            let material = &self.model.materials[mesh.material];
+            Self::draw_mesh_instanced(mesh, material, self.instances.get_instance_range(), render_pass);
+        }
+    }
+}
 

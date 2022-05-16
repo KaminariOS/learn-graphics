@@ -12,6 +12,7 @@ mod texture;
 mod world_space;
 mod model;
 mod resources;
+mod light;
 
 use model::ModelRenderGroup;
 
@@ -24,7 +25,8 @@ use winit::{
 #[cfg(target_arch="wasm32")]
 use wasm_bindgen::prelude::*;
 use crate::camera::{CameraController, CameraView, Projection};
-use crate::geo_gen::{RenderGroup};
+use crate::geo_gen::{GeoRenderGroup};
+use crate::light::{LightRenderGroup, LightUniform};
 use crate::texture::Texture;
 use crate::world_space::{Instances, InstanceTransform};
 
@@ -34,8 +36,29 @@ const SAMPLE_COUNT: u32 = 1;
 #[cfg(not(target_arch = "wasm32"))]
 const SAMPLE_COUNT: u32 = 4;
 
+const MULTI_SAMPLE: wgpu::MultisampleState = wgpu::MultisampleState {
+    count: SAMPLE_COUNT,
+    mask: !0,
+    alpha_to_coverage_enabled: false,
+};
 
 const FLOOR_HEIGHT: f32 = -10.0;
+const PRIMITIVE: wgpu::PrimitiveState = wgpu::PrimitiveState {
+    topology: wgpu::PrimitiveTopology::TriangleList,
+    strip_index_format: None,
+    front_face: wgpu::FrontFace::Ccw,
+    cull_mode: None,
+    // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
+    polygon_mode: wgpu::PolygonMode::Fill,
+    // Requires Features::DEPTH_CLIP_CONTROL
+    unclipped_depth: false,
+    // Requires Features::CONSERVATIVE_RASTERIZATION
+    conservative: false,
+};
+
+pub trait RenderGroup {
+    fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>);
+}
 
 struct State {
     surface: wgpu::Surface,
@@ -51,8 +74,7 @@ struct State {
     camera_controller: CameraController,
     mouse_pressed: bool,
     depth_texture: Texture,
-    render_groups: Vec<RenderGroup>,
-    model_render_groups: Vec<ModelRenderGroup>
+    render_groups: Vec<Box<dyn RenderGroup>>,
 }
 
 impl State {
@@ -110,7 +132,7 @@ impl State {
         let render_group = {
             let height = 26.0;
             let half_height = height / 2.0;
-            let obj = geo_gen::create_square(height, 40.0);
+            let obj = geo_gen::create_square(height, 40.0, &device);
             let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("img.png"));
             let instances = Instances::new(vec![
                 InstanceTransform {
@@ -126,10 +148,10 @@ impl State {
                 label: Some("Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("geo.wgsl").into()),
             });
-            RenderGroup::new(&device, &camera, entity_cube, instances, shader, &config)
+            GeoRenderGroup::new(&device, &camera, entity_cube, instances, shader, &config)
         };
         let render_group_ceil = {
-            let obj = geo_gen::create_floor(280.0, 280.0);
+            let obj = geo_gen::create_floor(280.0, 280.0, &device);
             let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("albedo.png"));
             let instances = Instances::new(vec![
                 InstanceTransform {
@@ -141,10 +163,8 @@ impl State {
                 label: Some("Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("geo.wgsl").into()),
             });
-            RenderGroup::new(&device, &camera, entity_cube, instances, shader, &config)
+            GeoRenderGroup::new(&device, &camera, entity_cube, instances, shader, &config)
         };
-        let render_groups = vec![render_group, render_group_ceil];
-
         let model_render_group = {
             log::warn!("Load model");
             let obj_model = resources::load_model(
@@ -154,7 +174,7 @@ impl State {
             ).await.unwrap();
             let instances = Instances::new(vec![
                 InstanceTransform {
-                    position: Vector3::new(-20.0, -10.0, 0.0),
+                    position: Vector3::new(-20.0, -12.0, 0.0),
                     rotation: Quaternion::one()
                 }
             ], &device);
@@ -164,9 +184,21 @@ impl State {
             });
             ModelRenderGroup::new(obj_model, instances, &device, &camera, shader, &config)
         };
-        let model_render_groups = vec![model_render_group];
+        let light_render_group = {
+            let light_uniform = LightUniform::default();
+            let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+                label: Some("Light Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("light.wgsl").into()),
+            });
+            LightRenderGroup::new(&device, light_uniform, shader, &camera, &config)
+        };
 
-
+        let render_groups: Vec<Box<dyn RenderGroup>> = vec![
+            Box::new(render_group),
+            Box::new(render_group_ceil) ,
+            Box::new(model_render_group),
+            Box::new(light_render_group)
+        ];
         let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
         let tex_view = create_multisampled_framebuffer(&device, &config);
@@ -185,7 +217,6 @@ impl State {
             mouse_pressed: false,
             depth_texture,
             render_groups,
-            model_render_groups
         }
     }
 
@@ -283,7 +314,6 @@ impl State {
 
             render_pass.set_bind_group(0, &self.camera.camera_bind_group, &[]);
             self.render_groups.iter().for_each(|x| x.render(&mut render_pass));
-            self.model_render_groups.iter().for_each(|x| x.render(&mut render_pass))
         }
 
         self.queue.submit(iter::once(encoder.finish()));
