@@ -1,7 +1,9 @@
 use std::ops::Range;
-use wgpu::{BindGroupLayout, Device, RenderPass, RenderPipeline, ShaderModule, SurfaceConfiguration};
+use wgpu::{BindGroup, BindGroupLayout, Buffer, Device, RenderPass, RenderPipeline, ShaderModule, SurfaceConfiguration};
+use wgpu::util::DeviceExt;
+use std::default::Default;
 
-use crate::{Camera, Instances, LightRenderGroup, MULTI_SAMPLE, PRIMITIVE, RenderGroup, texture, world_space};
+use crate::{Camera, LightRenderGroup, MULTI_SAMPLE, PRIMITIVE, RenderGroup, texture, uniform_desc, world_space};
 use crate::geo_gen::Vertex;
 
 
@@ -9,32 +11,78 @@ pub struct Material {
     pub name: String,
     pub diffuse_texture: texture::Texture,
     pub bind_group: wgpu::BindGroup,
+    pub uniform_bind_group: MaterialGroup
 }
 
-impl Material {
-    pub fn create_texture_bind_group_layout(device: &Device) -> BindGroupLayout {
-        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-            label: Some("texture_bind_group_layout"),
-        })
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct MaterialUniform {
+    pub ambient: [f32; 3],
+    _padding0: f32,
+    pub diffuse: [f32; 3],
+    _padding1: f32,
+    pub specular: [f32; 3],
+    _padding2: f32,
+    pub shininess: f32,
+    _padding3: [f32; 3],
+}
+
+impl Default for MaterialUniform {
+    fn default() -> Self {
+       Self {
+           ambient: [1.0; 3],
+           diffuse: [1.0; 3],
+           specular: [1.0; 3],
+           shininess: 0.0,
+           _padding0: 0.,
+           _padding1: 0.,
+           _padding2: 0.,
+           _padding3: [0.; 3],
+       }
     }
+}
+
+impl MaterialUniform {
+    pub fn new(ambient: [f32; 3], diffuse: [f32; 3], specular: [f32; 3], shininess: f32) -> Self {
+        Self {
+            ambient,
+            diffuse,
+            specular,
+            shininess,
+            ..Default::default()
+        }
+    }
+    pub fn create_buffer_and_bindgroup(self, device: &Device) ->  MaterialGroup {
+        let buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Light VB"),
+                contents: bytemuck::cast_slice(&[self]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        );
+        let bind_group_layout = device.create_bind_group_layout(&uniform_desc("MaterialUniform layout"));
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+            label: Some("material bind_group"),
+        });
+    MaterialGroup {
+       uniform: self,
+        buffer,
+        bind_group_layout,
+        bind_group
+        }
+    }
+}
+
+pub struct MaterialGroup {
+    uniform: MaterialUniform,
+    buffer: Buffer,
+    bind_group_layout: BindGroupLayout,
+    bind_group: BindGroup
 }
 
 pub struct Mesh {
@@ -58,11 +106,15 @@ pub(crate) struct ModelRenderGroup {
 }
 
 impl ModelRenderGroup {
-    pub fn new(model: Model, instances: world_space::Instances, device: &Device, camera: &Camera, shader: ShaderModule, config: &SurfaceConfiguration, light_render_group: &LightRenderGroup) -> Self {
+    pub fn new(model: Model, instances: world_space::Instances, device: &Device, camera: &Camera, config: &SurfaceConfiguration, light_render_group: &LightRenderGroup) -> Self {
+        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("Model Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        });
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera.camera_bind_group_layout, &light_render_group.light_bind_group_layout, &model.texture_bind_group_layout],
+                bind_group_layouts: &[&camera.camera_bind_group_layout, &light_render_group.light_bind_group_layout, &model.texture_bind_group_layout, &model.materials[0].uniform_bind_group.bind_group_layout],
                 push_constant_ranges: &[],
             });
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -108,6 +160,7 @@ impl ModelRenderGroup {
         render_pass.set_vertex_buffer(1, mesh.vertex_buffer.slice(..));
         render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         render_pass.set_bind_group(2, &material.bind_group, &[]);
+        render_pass.set_bind_group(3, &material.uniform_bind_group.bind_group, &[]);
         render_pass.draw_indexed(0..mesh.num_elements, 0, instances);
     }
 }

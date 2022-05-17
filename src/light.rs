@@ -2,7 +2,7 @@ use std::time::Duration;
 use cgmath::{Matrix3, Rotation3};
 use wgpu::{Device, RenderPass, ShaderModule, SurfaceConfiguration};
 use wgpu::util::DeviceExt;
-use crate::{Camera, geo_gen, MULTI_SAMPLE, PRIMITIVE, RenderGroup, texture};
+use crate::{Camera, geo_gen, MULTI_SAMPLE, PRIMITIVE, RenderGroup, texture, uniform_desc};
 use crate::geo_gen::GeoObj;
 
 #[repr(C)]
@@ -12,13 +12,21 @@ pub struct LightUniform {
     // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
     pub(crate) color: [f32; 4],
     // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
+    pub ambient_strength: f32,
+    _padding1: [f32; 3],
+    pub specular_strength: f32,
+    _padding2: [f32; 3],
 }
 
 impl Default for LightUniform {
     fn default() -> Self {
        Self {
            position: [40., 10., -10.0, 1.],
-           color: [1., 1., 1., 1.]
+           color: [1., 1., 1., 1.],
+           ambient_strength: 0.1,
+           _padding1: [0.; 3],
+           specular_strength: 1.0,
+           _padding2: [0.;3]
        }
     }
 }
@@ -42,19 +50,7 @@ impl LightRenderGroup {
             }
         );
         let light_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: None,
-            });
+            device.create_bind_group_layout(&uniform_desc("LightUniform BindGroupLayout"));
 
         let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &light_bind_group_layout,

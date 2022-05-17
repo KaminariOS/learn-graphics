@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use anyhow::*;
 use image::GenericImageView;
-use crate::SAMPLE_COUNT;
+use crate::{SAMPLE_COUNT, TEXTURE_SAMPLE_COUNT};
 
 pub struct Texture {
     pub texture: wgpu::Texture,
@@ -93,7 +93,7 @@ impl Texture {
             label,
             size,
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count: TEXTURE_SAMPLE_COUNT,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
@@ -140,7 +140,7 @@ impl Texture {
                     binding: 0,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
-                        multisampled: false,
+                        multisampled: TEXTURE_SAMPLE_COUNT != 1,
                         view_dimension: wgpu::TextureViewDimension::D2,
                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
                     },

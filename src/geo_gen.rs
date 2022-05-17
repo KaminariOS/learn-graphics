@@ -1,7 +1,7 @@
 use std::ops::Range;
-use wgpu::{BindGroupLayout, Device, IndexFormat, Queue, RenderPipeline, ShaderModule, SurfaceConfiguration};
+use wgpu::{Device, IndexFormat, Queue, RenderPipeline, ShaderModule, SurfaceConfiguration};
 use wgpu::util::DeviceExt;
-use crate::{Instances, LightRenderGroup, MULTI_SAMPLE, PRIMITIVE, RenderGroup, world_space};
+use crate::{LightRenderGroup, MULTI_SAMPLE, PRIMITIVE, RenderGroup, world_space};
 use crate::{Camera, texture};
 
 #[repr(C)]
@@ -192,7 +192,7 @@ pub fn create_square(height: f32, width: f32, device: &Device) -> GeoObj {
 pub fn create_floor(height: f32, width: f32, device: &Device) -> GeoObj {
     let half_width = width / 2.0;
     let half_height = height / 2.0;
-    let mul = 10.0;
+    let mul = 100.0;
     let vertex_data = vec![
         Vertex::new([half_width, half_height, 0.0], [mul, mul], [0., 0., 1.]),
         Vertex::new([-half_width, half_height, 0.0], [0.0, mul], [0., 0., 1.]),

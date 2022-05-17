@@ -24,6 +24,7 @@ use winit::{
 
 #[cfg(target_arch="wasm32")]
 use wasm_bindgen::prelude::*;
+use winit::event::VirtualKeyCode::S;
 use crate::camera::{CameraController, CameraView, Projection};
 use crate::geo_gen::{GeoRenderGroup};
 use crate::light::{LightRenderGroup, LightUniform};
@@ -35,6 +36,8 @@ use crate::world_space::{Instances, InstanceTransform};
 const SAMPLE_COUNT: u32 = 1;
 #[cfg(not(target_arch = "wasm32"))]
 const SAMPLE_COUNT: u32 = 4;
+
+const TEXTURE_SAMPLE_COUNT: u32 = 1;
 
 const MULTI_SAMPLE: wgpu::MultisampleState = wgpu::MultisampleState {
     count: SAMPLE_COUNT,
@@ -58,6 +61,24 @@ const PRIMITIVE: wgpu::PrimitiveState = wgpu::PrimitiveState {
 
 pub trait RenderGroup {
     fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>);
+}
+
+static UNIFORM_BIND_GROUP_LAYOUT_ENTRY: [wgpu::BindGroupLayoutEntry; 1] = [wgpu::BindGroupLayoutEntry {
+    binding: 0,
+    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+    ty: wgpu::BindingType::Buffer {
+        ty: wgpu::BufferBindingType::Uniform,
+        has_dynamic_offset: false,
+        min_binding_size: None,
+    },
+    count: None,
+}];
+
+fn uniform_desc(label_str: &str) -> wgpu::BindGroupLayoutDescriptor {
+    wgpu::BindGroupLayoutDescriptor {
+        entries: &UNIFORM_BIND_GROUP_LAYOUT_ENTRY,
+        label: Some(label_str),
+    }
 }
 
 struct State {
@@ -127,7 +148,7 @@ impl State {
 
         let camera = Camera::new(
             CameraView::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0)),
-            Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 400.0),
+            Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 800.0),
             &device,
         );
         let light_render_group = {
@@ -160,7 +181,7 @@ impl State {
             GeoRenderGroup::new(&device, &camera, entity_cube, instances, shader, &config, &light_render_group)
         };
         let render_group_ceil = {
-            let obj = geo_gen::create_floor(280.0, 280.0, &device);
+            let obj = geo_gen::create_floor(2800.0, 2800.0, &device);
             let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("albedo.png"));
             let instances = Instances::new(vec![
                 InstanceTransform {
@@ -188,18 +209,30 @@ impl State {
                     rotation: Quaternion::one()
                 }
             ], &device);
-            let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-                label: Some("Model Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("geo.wgsl").into()),
-            });
-            ModelRenderGroup::new(obj_model, instances, &device, &camera, shader, &config, &light_render_group)
+            ModelRenderGroup::new(obj_model, instances, &device, &camera, &config, &light_render_group)
         };
-
+        let sword_model_render_group = {
+            log::warn!("Load model");
+            let obj_model = resources::load_model(
+                "arto.obj",
+                &device,
+                &queue,
+                1.0
+            ).await.unwrap();
+            let instances = Instances::new(vec![
+                InstanceTransform {
+                    position: Vector3::new(-0.0, -10.0, 0.0),
+                    rotation: Quaternion::one()
+                }
+            ], &device);
+            ModelRenderGroup::new(obj_model, instances, &device, &camera, &config, &light_render_group)
+        };
 
         let render_groups: Vec<Box<dyn RenderGroup>> = vec![
             Box::new(render_group),
             Box::new(render_group_ceil) ,
             Box::new(model_render_group),
+            Box::new(sword_model_render_group)
         ];
         let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 

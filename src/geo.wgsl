@@ -10,6 +10,8 @@ var<uniform> camera: CameraUniform;
 struct Light {
     position: vec4<f32>;
     color: vec4<f32>;
+    ambient_strength: f32;
+    specular_strength: f32;
 };
 [[group(1), binding(0)]]
 var<uniform> light: Light;
@@ -50,7 +52,7 @@ fn vs_main(
     let normal_matrix = mat3x3<f32>(
             instance.normal_matrix_0,
             instance.normal_matrix_1,
-            instance.normal_matrix_2,
+            instance.normal_matrix_2
         );
     var v_out: VertexOutput;
     v_out.tex_coords = model.tex_coords;
@@ -68,20 +70,34 @@ var t_diffuse: texture_2d<f32>;
 [[group(2), binding(1)]]
 var s_diffuse: sampler;
 
+fn multisample_tex(tex_coords: vec2<f32>, sample_count: f32) -> vec4<f32> {
+    let tex_c = vec2<f32>(tex_coords.x % 1.0, 1.0 - tex_coords.y % 1.0);
+    let normal_tex_cord = vec2<i32>(vec2<f32>(textureDimensions(t_diffuse)) * tex_c);
+    var obj_color = vec4<f32>(0.0);
+    let sample_count: f32 = 1.0;
+    for (var i: i32 = 0; i < i32(sample_count); i = i + 1) {
+      obj_color = obj_color + textureLoad(t_diffuse, normal_tex_cord, i);
+    }
+    obj_color = obj_color / sample_count;
+    return obj_color;
+}
 [[stage(fragment)]]
 fn fs_main(f_in: VertexOutput) -> [[location(0)]] vec4<f32> {
-     let ambient_strength = 0.1;
-     let ambient_color = light.color.xyz * ambient_strength;
 
+     let dis = length(light.position.xyz - f_in.world_position);
+     let light_color = light.color.rgb;
+     // (1.0 + 0.045 * dis + 0.0075 * dis * dis);
+     let ambient_strength = light.ambient_strength;
+     let ambient_color = light_color * ambient_strength;
      let light_dir = normalize(light.position.xyz - f_in.world_position);
      let view_dir = normalize(camera.view_pos.xyz - f_in.world_position);
      let half_dir = normalize(view_dir + light_dir);
 
      let diffuse_strength = max(dot(f_in.world_normal, light_dir), 0.0);
-     let diffuse_color = light.color.rgb * diffuse_strength;
+     let diffuse_color = light_color * diffuse_strength;
 
      let specular_strength = pow(max(dot(f_in.world_normal, half_dir), 0.0), 32.0);
-     let specular_color = specular_strength * light.color.rgb;
+     let specular_color = light.specular_strength * specular_strength * light_color;
 
     let v_tex = vec2<f32>(f_in.tex_coords.x, 1.0 - f_in.tex_coords.y);
     let obj_color = textureSample(t_diffuse, s_diffuse, v_tex);

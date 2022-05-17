@@ -5,7 +5,8 @@ use wgpu::util::DeviceExt;
 
 use crate::{model, texture};
 use crate::geo_gen::Vertex;
-use crate::model::Material;
+use crate::model::MaterialUniform;
+
 
 #[cfg(target_arch = "wasm32")]
     fn format_url(file_name: &str) -> reqwest::Url {
@@ -78,7 +79,6 @@ pub async fn load_model(
     let obj_cursor = Cursor::new(obj_text);
     let mut obj_reader = BufReader::new(obj_cursor);
 
-    let texture_bind_group_layout = Material::create_texture_bind_group_layout(device);
     let (models, obj_materials) = tobj::load_obj_buf_async(
         &mut obj_reader,
         &tobj::LoadOptions {
@@ -94,6 +94,8 @@ pub async fn load_model(
     .await?;
 
     let mut materials = Vec::new();
+
+    let texture_bind_group_layout = device.create_bind_group_layout(&texture::Texture::desc());
     for m in obj_materials? {
         let diffuse_texture = load_texture(&m.diffuse_texture, device, queue).await?;
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -110,11 +112,17 @@ pub async fn load_model(
             ],
             label: None,
         });
-
+        let material_uniform_group = MaterialUniform::new(
+            m.ambient,
+            m.diffuse,
+            m.specular,
+            m.shininess,
+        );
         materials.push(model::Material {
             name: m.name,
             diffuse_texture,
             bind_group,
+            uniform_bind_group: material_uniform_group.create_buffer_and_bindgroup(device)
         })
     }
 

@@ -9,6 +9,8 @@ var<uniform> camera: CameraUniform;
 struct Light {
     position: vec4<f32>;
     color: vec4<f32>;
+    ambient_strength: f32;
+    specular_strength: f32;
 };
 
 [[group(1), binding(0)]]
