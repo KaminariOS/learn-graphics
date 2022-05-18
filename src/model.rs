@@ -1,7 +1,9 @@
+use std::cell::RefCell;
 use std::ops::Range;
-use wgpu::{BindGroup, BindGroupLayout, Buffer, Device, RenderPass, RenderPipeline, ShaderModule, SurfaceConfiguration};
+use wgpu::{BindGroup, BindGroupLayout, Buffer, Device, RenderPass, RenderPipeline, SurfaceConfiguration};
 use wgpu::util::DeviceExt;
 use std::default::Default;
+use std::rc::Rc;
 
 use crate::{Camera, LightRenderGroup, MULTI_SAMPLE, PRIMITIVE, RenderGroup, texture, uniform_desc, world_space};
 use crate::geo_gen::Vertex;
@@ -33,7 +35,7 @@ impl Default for MaterialUniform {
            ambient: [1.0; 3],
            diffuse: [1.0; 3],
            specular: [1.0; 3],
-           shininess: 0.0,
+           shininess: 32.0,
            _padding0: 0.,
            _padding1: 0.,
            _padding2: 0.,
@@ -106,7 +108,7 @@ pub(crate) struct ModelRenderGroup {
 }
 
 impl ModelRenderGroup {
-    pub fn new(model: Model, instances: world_space::Instances, device: &Device, camera: &Camera, config: &SurfaceConfiguration, light_render_group: &LightRenderGroup) -> Self {
+    pub fn new(model: Model, instances: world_space::Instances, device: &Device, camera: &Camera, config: &SurfaceConfiguration, light_render_group: &LightRenderGroup) -> Rc<RefCell<Self>> {
         let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: Some("Model Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
@@ -144,11 +146,12 @@ impl ModelRenderGroup {
             // indicates how many array layers the attachments will have.
             multiview: None,
         });
-        Self {
+        Rc::new(RefCell::new(Self {
             model,
             instances,
             render_pipeline
-        }
+        })
+        )
     }
 
     fn draw_mesh_instanced<'a, 'b: 'a>(

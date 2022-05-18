@@ -94,8 +94,7 @@ fn multisample_tex(tex_coords: vec2<f32>, sample_count: f32) -> vec4<f32> {
 fn fs_main(f_in: VertexOutput) -> [[location(0)]] vec4<f32> {
 
      let dis = length(light.position.xyz - f_in.world_position);
-     let light_color = light.color.rgb;
-     // (1.0 + 0.045 * dis + 0.0075 * dis * dis);
+     let light_color = light.color.rgb / (1.0 + 0.045 * dis + 0.0075 * dis * dis);
      let ambient_strength = light.ambient_strength;
      let ambient_color = light_color * ambient_strength * material_uniform.ambient;
      let light_dir = normalize(light.position.xyz - f_in.world_position);

@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::iter;
+use std::rc::Rc;
 use cgmath::prelude::*;
 use cgmath::{Quaternion, Vector3};
 
@@ -24,7 +26,6 @@ use winit::{
 
 #[cfg(target_arch="wasm32")]
 use wasm_bindgen::prelude::*;
-use winit::event::VirtualKeyCode::S;
 use crate::camera::{CameraController, CameraView, Projection};
 use crate::geo_gen::{GeoRenderGroup};
 use crate::light::{LightRenderGroup, LightUniform};
@@ -95,8 +96,8 @@ struct State {
     camera_controller: CameraController,
     mouse_pressed: bool,
     depth_texture: Texture,
-    render_groups: Vec<Box<dyn RenderGroup>>,
-    light_render_group: LightRenderGroup
+    render_groups: Vec<Rc<RefCell<dyn RenderGroup>>>,
+    light_render_group: Rc<RefCell<LightRenderGroup>>
 }
 
 impl State {
@@ -163,22 +164,18 @@ impl State {
             let height = 26.0;
             let half_height = height / 2.0;
             let obj = geo_gen::create_square(height, 40.0, &device);
-            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("img.png"));
+            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("asuka.png"));
             let instances = Instances::new(vec![
                 InstanceTransform {
                 position: Vector3::new(0.0, half_height + FLOOR_HEIGHT, -40.0),
                 rotation: Quaternion::one(),
             },
-                InstanceTransform {
-                    position: Vector3::new(10.0, half_height + FLOOR_HEIGHT, 0.0),
-                    rotation: Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(-90.0))
-                }
+                // InstanceTransform {
+                //     position: Vector3::new(10.0, half_height + FLOOR_HEIGHT, 0.0),
+                //     rotation: Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(-90.0))
+                // }
             ], &device);
-            let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-                label: Some("Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("geo.wgsl").into()),
-            });
-            GeoRenderGroup::new(&device, &camera, entity_cube, instances, shader, &config, &light_render_group)
+            GeoRenderGroup::new(&device, &camera, entity_cube, instances, &config, &light_render_group.borrow())
         };
         let render_group_ceil = {
             let obj = geo_gen::create_floor(2800.0, 2800.0, &device);
@@ -189,11 +186,40 @@ impl State {
                     rotation: Quaternion::from_axis_angle(cgmath::Vector3::unit_x(), cgmath::Deg(-90.0))
                 }
             ], &device);
-            let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-                label: Some("Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("geo.wgsl").into()),
-            });
-            GeoRenderGroup::new(&device, &camera, entity_cube, instances, shader, &config, &light_render_group)
+            GeoRenderGroup::new(&device, &camera, entity_cube, instances, &config, &light_render_group.borrow())
+        };
+        let render_group_sphere = {
+            let obj = geo_gen::create_sphere( 5.0, 3, 2, &device);
+            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("texture_test.png"));
+            let instances = Instances::new(vec![
+                InstanceTransform {
+                    position: Vector3::new(10.0, 5.0, -5.0),
+                    rotation: Quaternion::one()
+                }
+            ], &device);
+            GeoRenderGroup::new(&device, &camera, entity_cube, instances, &config, &light_render_group.borrow())
+        };
+        let render_group_sphere_2 = {
+            let obj = geo_gen::create_sphere( 10.0, 5, 5, &device);
+            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("texture_test.png"));
+            let instances = Instances::new(vec![
+                InstanceTransform {
+                    position: Vector3::new(60.0, 5.0, -15.0),
+                    rotation: Quaternion::one()
+                }
+            ], &device);
+            GeoRenderGroup::new(&device, &camera, entity_cube, instances, &config, &light_render_group.borrow())
+        };
+        let render_group_sphere_3 = {
+            let obj = geo_gen::create_sphere( 20.0, 40, 40, &device);
+            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("texture_test.png"));
+            let instances = Instances::new(vec![
+                InstanceTransform {
+                    position: Vector3::new(40.0, 40.0, -15.0),
+                    rotation: Quaternion::one()
+                }
+            ], &device);
+            GeoRenderGroup::new(&device, &camera, entity_cube, instances, &config, &light_render_group.borrow())
         };
         let model_render_group = {
             log::warn!("Load model");
@@ -205,11 +231,11 @@ impl State {
             ).await.unwrap();
             let instances = Instances::new(vec![
                 InstanceTransform {
-                    position: Vector3::new(-20.0, -11.0, 0.0),
+                    position: Vector3::new(-60.0, -11.0, 0.0),
                     rotation: Quaternion::one()
                 }
             ], &device);
-            ModelRenderGroup::new(obj_model, instances, &device, &camera, &config, &light_render_group)
+            ModelRenderGroup::new(obj_model, instances, &device, &camera, &config, &light_render_group.borrow())
         };
         let sword_model_render_group = {
             log::warn!("Load model");
@@ -225,14 +251,17 @@ impl State {
                     rotation: Quaternion::one()
                 }
             ], &device);
-            ModelRenderGroup::new(obj_model, instances, &device, &camera, &config, &light_render_group)
+            ModelRenderGroup::new(obj_model, instances, &device, &camera, &config, &light_render_group.borrow())
         };
-
-        let render_groups: Vec<Box<dyn RenderGroup>> = vec![
-            Box::new(render_group),
-            Box::new(render_group_ceil) ,
-            Box::new(model_render_group),
-            Box::new(sword_model_render_group)
+        let render_groups: Vec<Rc<RefCell<dyn RenderGroup>>> = vec![
+            light_render_group.clone(),
+            render_group,
+            render_group_ceil,
+            model_render_group,
+            sword_model_render_group,
+            render_group_sphere,
+            render_group_sphere_2,
+            render_group_sphere_3
         ];
         let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
@@ -302,7 +331,8 @@ impl State {
     fn update(&mut self, dt: std::time::Duration) {
         self.camera_controller.update_camera(&mut self.camera.view, dt);
         self.camera.update_camera(&self.queue);
-        self.light_render_group.update_light(dt, &self.queue);
+        let mut light = self.light_render_group.borrow_mut();
+            light.update_light(dt, &self.queue);
         // Update the light
     }
 
@@ -322,7 +352,7 @@ impl State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
-
+        let refs: Vec<_> = self.render_groups.iter().map(|x| x.borrow()).collect();
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -350,14 +380,14 @@ impl State {
             });
 
             render_pass.set_bind_group(0, &self.camera.camera_bind_group, &[]);
-            self.light_render_group.render(&mut render_pass);
 
-            self.render_groups.iter().for_each(|x| x.render(&mut render_pass));
+            refs.iter().for_each(|x| {
+               x.render(&mut render_pass);
+            });
         }
 
         self.queue.submit(iter::once(encoder.finish()));
         output.present();
-
         Ok(())
     }
 }

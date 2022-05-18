@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::ops::Range;
-use wgpu::{Device, IndexFormat, Queue, RenderPipeline, ShaderModule, SurfaceConfiguration};
+use std::rc::Rc;
+use wgpu::{Device, IndexFormat, Queue, RenderPipeline, SurfaceConfiguration};
 use wgpu::util::DeviceExt;
 use crate::{LightRenderGroup, MULTI_SAMPLE, PRIMITIVE, RenderGroup, world_space};
 use crate::{Camera, texture};
@@ -117,7 +119,11 @@ pub struct GeoRenderGroup {
 }
 
 impl GeoRenderGroup {
-    pub fn new(device: &wgpu::Device, camera: &Camera, entity: Entity, instances: world_space::Instances, shader: ShaderModule, config: &SurfaceConfiguration, light_render_group: &LightRenderGroup) -> Self {
+    pub fn new(device: &wgpu::Device, camera: &Camera, entity: Entity, instances: world_space::Instances, config: &SurfaceConfiguration, light_render_group: &LightRenderGroup) -> Rc<RefCell<Self>> {
+        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some(" Geo Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("geo.wgsl").into()),
+        });
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
@@ -152,11 +158,12 @@ impl GeoRenderGroup {
             // indicates how many array layers the attachments will have.
             multiview: None,
         });
-        Self {
+        Rc::new(
+           RefCell::new( Self {
             entity,
             instances,
             render_pipeline
-        }
+        }))
     }
 
 
@@ -249,4 +256,91 @@ pub fn create_cube(size: f32, device: &Device) -> GeoObj {
         index_data,
         device
     )
+}
+
+struct SphereGenerator {
+    u: usize,
+    v: usize,
+    radius: f32,
+    u_frag: f32,
+    v_frag: f32,
+    vertex_data: Vec<Vertex>,
+    index_data: Vec<u16>,
+    enqueued: Vec<Vec<Option<u16>>>,
+    index: u16,
+}
+
+const PI: f32 = std::f32::consts::PI;
+impl SphereGenerator {
+    pub fn new(radius: f32, u: usize, v: usize) -> Self {
+        let vertex_data = Vec::with_capacity( u * v);
+        let index_data = Vec::with_capacity( u * v);
+        let enqueued = vec![vec![None; v + 1]; u + 1];
+        let index = 0;
+        let u_frag = PI * 2. / (u as f32);
+        let v_frag = PI / (v as f32);
+        Self {
+            u, v, radius,
+            u_frag,
+            v_frag,
+            vertex_data,
+            index_data,
+            enqueued,
+            index
+        }
+    }
+
+    fn create_sphere_vertex(&self, theta: f32, phi: f32) -> Vertex {
+        let r = self.radius;
+        let x = r * theta.sin() * phi.cos();
+        let y = r * theta.cos();
+        let z = - r * theta.sin() * phi.sin();
+        let position = [x, y, z];
+        let normal = [x / r, y / r, z / r];
+        let tex_coords = [phi / (2. * PI), 1.0 - theta / PI];
+        Vertex {
+            position,
+            tex_coords,
+            normal
+        }
+    }
+
+    fn get_index(&mut self, v: usize, u: usize) -> u16 {
+        return if let Some(ind) = &self.enqueued[u][v] {
+            *ind
+        } else {
+            let theta = v as f32 * self.v_frag;
+            let phi = u as f32 * self.u_frag;
+            self.vertex_data.push(self.create_sphere_vertex(theta, phi));
+            let old = self.index;
+            self.enqueued[u][v] = Some(old);
+            self.index += 1;
+            old
+        }
+    }
+
+    fn build_sphere(mut self) -> Self {
+        for i in 0..self.v {
+            for j in 0..self.u  {
+                let p0 = self.get_index(i, j);
+                let p1 = self.get_index(i + 1, j);
+                let p2 = self.get_index(i + 1, j + 1);
+                let p3 = self.get_index(i, j + 1);
+                self.index_data.extend([p0, p1, p3, p3, p1, p2]);
+            }
+        }
+        self
+    }
+
+    fn create_obj(self, device: &Device) -> GeoObj {
+        let Self {vertex_data, index_data, ..} = self;
+        GeoObj::new(
+            vertex_data,
+            index_data,
+            device
+        )
+    }
+}
+pub fn create_sphere(radius: f32, u: usize, v: usize, device: &Device) -> GeoObj {
+    SphereGenerator::new(radius, u, v).build_sphere().create_obj(device)
 }

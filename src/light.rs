@@ -1,5 +1,7 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::Duration;
-use cgmath::{Matrix3, Rotation3};
+use cgmath::Rotation3;
 use wgpu::{Device, RenderPass, ShaderModule, SurfaceConfiguration};
 use wgpu::util::DeviceExt;
 use crate::{Camera, geo_gen, MULTI_SAMPLE, PRIMITIVE, RenderGroup, texture, uniform_desc};
@@ -41,7 +43,7 @@ pub struct LightRenderGroup {
 }
 
 impl LightRenderGroup {
-    pub fn new(device: &Device, light_uniform: LightUniform, shader: ShaderModule, camera: &Camera, config: &SurfaceConfiguration) -> Self {
+    pub fn new(device: &Device, light_uniform: LightUniform, shader: ShaderModule, camera: &Camera, config: &SurfaceConfiguration) -> Rc<RefCell<Self>> {
         let buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Light VB"),
@@ -90,14 +92,14 @@ impl LightRenderGroup {
             multisample: MULTI_SAMPLE,
             multiview: None
         });
-        Self {
+        Rc::new(RefCell::new(Self {
             light_uniform,
             buffer,
             light_bind_group_layout,
             light_bind_group,
             light_render_pipeline,
             obj: geo_gen::create_cube(10.0, device)
-        }
+        }))
     }
 
     pub fn update_light(&mut self, dt: Duration, queue: &wgpu::Queue) {
