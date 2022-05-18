@@ -15,9 +15,8 @@ pub struct LightUniform {
     pub(crate) color: [f32; 4],
     // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
     pub ambient_strength: f32,
-    _padding1: [f32; 3],
     pub specular_strength: f32,
-    _padding2: [f32; 3],
+    _padding1: [f32; 2],
 }
 
 impl Default for LightUniform {
@@ -26,9 +25,8 @@ impl Default for LightUniform {
            position: [40., 10., -10.0, 1.],
            color: [1., 1., 1., 1.],
            ambient_strength: 0.1,
-           _padding1: [0.; 3],
+           _padding1: [0.; 2],
            specular_strength: 1.0,
-           _padding2: [0.;3]
        }
     }
 }
