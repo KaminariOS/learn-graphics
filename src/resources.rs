@@ -6,7 +6,7 @@ use wgpu::util::DeviceExt;
 use crate::{model, texture};
 use crate::geo_gen::Vertex;
 use crate::model::MaterialUniform;
-
+use rayon::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
     fn format_url(file_name: &str) -> reqwest::Url {
@@ -126,8 +126,17 @@ pub async fn load_model(
         })
     }
 
-    let meshes = models
-        .into_iter()
+    let iter = {
+        cfg_if::cfg_if! {
+                if #[cfg(target_arch = "wasm32")] {
+                    models.into_iter()
+                } else {
+                    models.into_par_iter()
+                }
+            }
+    };
+    let meshes =
+        iter
         .map(|m| {
             let vertices = (0..m.mesh.positions.len() / 3)
                 .map(|i| Vertex {
