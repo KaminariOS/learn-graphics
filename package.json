@@ -1,0 +1,25 @@
+{
+  "name": "learn-graphics",
+  "version": "1.0.0",
+  "description": "= Learning wgpu :source-highlighter: rouge",
+  "main": "index.js",
+  "scripts": {
+    "build":"wasm-pack build -d build/pkg --target web && cp index.html build/index.html && cp -R obj build",
+    "deploy": "npm run build && npx gh-pages -d build -t true",
+    "clean": "rm -rf build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KaminariOS/learn-graphics.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/KaminariOS/learn-graphics/issues"
+  },
+  "homepage": "https://github.com/KaminariOS/learn-graphics#readme",
+  "devDependencies": {
+    "gh-pages": "^4.0.0"
+  }
+}
