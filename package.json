@@ -4,7 +4,7 @@
   "description": "= Learning wgpu :source-highlighter: rouge",
   "main": "index.js",
   "scripts": {
-    "build": "wasm-pack build -d pkg --target web && cp index.html build/index.html && cp -R obj build && cp -R pkg build",
+    "build": "wasm-pack build -d pkg --target web && mkdir build && cp index.html build/index.html && cp -R obj build && cp -R pkg build",
     "deploy": "npm run build && npx gh-pages -d build -t true",
     "clean": "rm -rf build",
     "test": "echo \"Error: no test specified\" && exit 1"
