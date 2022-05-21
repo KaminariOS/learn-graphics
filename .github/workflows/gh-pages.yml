@@ -20,10 +20,9 @@ jobs:
         with:
           # Optional version of wasm-pack to install(eg. 'v0.9.1', 'latest')
           version: 'latest'
-      - run: npm run build
+      - run: npm run build && echo "Build folder:" && ls build
       - name: Deploy
         uses: crazy-max/ghaction-github-pages@v1
-        run: echo "Build folder:" && ls build
         with:
           target_branch: gh-pages
           build_dir: build
