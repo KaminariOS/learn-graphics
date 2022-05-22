@@ -84,8 +84,8 @@ pub struct Entity {
 }
 
 impl Entity {
-    pub(crate) fn new(device: &Device, queue: &Queue, obj: GeoObj, diffuse_bytes: &[u8]) -> Self {
-        let diffuse_texture = texture::Texture::from_bytes(device, queue, diffuse_bytes, "Todo").unwrap();
+    pub(crate) fn new(device: &Device, queue: &Queue, obj: GeoObj, diffuse_bytes: &[u8], mip_level_count: u32) -> Self {
+        let diffuse_texture = texture::Texture::from_bytes(device, queue, diffuse_bytes, "Todo", mip_level_count).unwrap();
         let texture_bind_group_layout =
             device.create_bind_group_layout(&texture::Texture::desc());
         let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {

@@ -167,7 +167,7 @@ impl State {
             let height = 26.0;
             let half_height = height / 2.0;
             let obj = geo_gen::create_square(height, 40.0, &device);
-            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("asuka.png"));
+            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("asuka.png"), 1);
             let instances = Instances::new(vec![
                 InstanceTransform {
                 position: Vector3::new(0.0, half_height + FLOOR_HEIGHT, -40.0),
@@ -182,7 +182,7 @@ impl State {
         };
         let render_group_ceil = {
             let obj = geo_gen::create_floor(2800.0, 2800.0, &device);
-            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("albedo.png"));
+            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("albedo.png"), 8);
             let instances = Instances::new(vec![
                 InstanceTransform {
                     position: Vector3::new(00.0, FLOOR_HEIGHT, 0.0),
@@ -193,7 +193,7 @@ impl State {
         };
         let render_group_sphere = {
             let obj = geo_gen::create_sphere( 10.0, 3, 2, &device);
-            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("texture_test.png"));
+            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("texture_test.png"), 1);
             let instances = Instances::new(vec![
                 InstanceTransform {
                     position: Vector3::new(60.0, 5.0, -15.0),
@@ -328,7 +328,6 @@ impl State {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let tex_view = &self.tex_view;
 
         let mut encoder = self
             .device
@@ -340,7 +339,7 @@ impl State {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[wgpu::RenderPassColorAttachment {
-                    view: if SAMPLE_COUNT == 1 { &view } else { tex_view },
+                    view: if SAMPLE_COUNT == 1 { &view } else { &self.tex_view },
                     resolve_target: Some(&view).filter(|_| SAMPLE_COUNT != 1),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
