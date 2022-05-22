@@ -246,7 +246,7 @@ impl State {
         let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
         let tex_view = create_multisampled_framebuffer(&device, &config);
-        let camera_controller = camera::CameraController::new(4.0, 0.4);
+        let camera_controller = camera::CameraController::new(4.0, 0.2);
 
         Self {
             surface,
