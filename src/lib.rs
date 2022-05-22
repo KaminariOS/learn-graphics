@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::iter;
 use std::rc::Rc;
+use std::time::Duration;
 use cgmath::prelude::*;
 use cgmath::{Quaternion, Vector3};
 
@@ -27,7 +28,7 @@ use winit::{
 #[cfg(target_arch="wasm32")]
 use wasm_bindgen::prelude::*;
 use crate::camera::{CameraController, CameraView, Projection};
-use crate::geo_gen::{GeoRenderGroup};
+use crate::geo_gen::{create_sphere, GeoRenderGroup};
 use crate::light::{LightRenderGroup, LightUniform};
 use crate::texture::Texture;
 use crate::world_space::{Instances, InstanceTransform};
@@ -97,7 +98,9 @@ struct State {
     mouse_pressed: bool,
     depth_texture: Texture,
     render_groups: Vec<Rc<RefCell<dyn RenderGroup>>>,
-    light_render_group: Rc<RefCell<LightRenderGroup>>
+    light_render_group: Rc<RefCell<LightRenderGroup>>,
+    render_group_sphere: Rc<RefCell<GeoRenderGroup>>,
+    total_duration: Duration
 }
 
 impl State {
@@ -189,18 +192,7 @@ impl State {
             GeoRenderGroup::new(&device, &camera, entity_cube, instances, &config, &light_render_group.borrow())
         };
         let render_group_sphere = {
-            let obj = geo_gen::create_sphere( 5.0, 3, 2, &device);
-            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("texture_test.png"));
-            let instances = Instances::new(vec![
-                InstanceTransform {
-                    position: Vector3::new(10.0, 5.0, -5.0),
-                    rotation: Quaternion::one()
-                }
-            ], &device);
-            GeoRenderGroup::new(&device, &camera, entity_cube, instances, &config, &light_render_group.borrow())
-        };
-        let render_group_sphere_2 = {
-            let obj = geo_gen::create_sphere( 10.0, 5, 5, &device);
+            let obj = geo_gen::create_sphere( 10.0, 3, 2, &device);
             let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("texture_test.png"));
             let instances = Instances::new(vec![
                 InstanceTransform {
@@ -210,17 +202,7 @@ impl State {
             ], &device);
             GeoRenderGroup::new(&device, &camera, entity_cube, instances, &config, &light_render_group.borrow())
         };
-        let render_group_sphere_3 = {
-            let obj = geo_gen::create_sphere( 20.0, 40, 40, &device);
-            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("texture_test.png"));
-            let instances = Instances::new(vec![
-                InstanceTransform {
-                    position: Vector3::new(40.0, 40.0, -15.0),
-                    rotation: Quaternion::one()
-                }
-            ], &device);
-            GeoRenderGroup::new(&device, &camera, entity_cube, instances, &config, &light_render_group.borrow())
-        };
+
         let model_render_group = {
             log::warn!("Load model");
             let obj_model = resources::load_model(
@@ -259,9 +241,7 @@ impl State {
             render_group_ceil,
             model_render_group,
             sword_model_render_group,
-            render_group_sphere,
-            render_group_sphere_2,
-            render_group_sphere_3
+            render_group_sphere.clone(),
         ];
         let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
@@ -281,7 +261,9 @@ impl State {
             mouse_pressed: false,
             depth_texture,
             render_groups,
-            light_render_group
+            light_render_group,
+            render_group_sphere,
+            total_duration: Duration::from_secs(0)
         }
     }
 
@@ -331,9 +313,10 @@ impl State {
     fn update(&mut self, dt: std::time::Duration) {
         self.camera_controller.update_camera(&mut self.camera.view, dt);
         self.camera.update_camera(&self.queue);
-        let mut light = self.light_render_group.borrow_mut();
-            light.update_light(dt, &self.queue);
-        // Update the light
+        self.light_render_group.borrow_mut().update_light(dt, &self.queue);
+        self.total_duration += dt;
+        let count = (3 + self.total_duration.as_secs() % 15) as usize;
+        self.render_group_sphere.borrow_mut().entity.obj = create_sphere(10.0, count, count - 1, &self.device);
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {

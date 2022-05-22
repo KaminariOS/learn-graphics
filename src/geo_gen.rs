@@ -109,7 +109,6 @@ impl Entity {
         }
     }
 
-
 }
 
 pub struct GeoRenderGroup {
