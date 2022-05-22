@@ -180,7 +180,7 @@ impl State {
             ], &device);
             GeoRenderGroup::new(&device, &camera, entity_cube, instances, &config, &light_render_group.borrow())
         };
-        let render_group_ceil = {
+        let render_group_floor = {
             let obj = geo_gen::create_floor(2800.0, 2800.0, &device);
             let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("albedo.png"), 8);
             let instances = Instances::new(vec![
@@ -238,7 +238,7 @@ impl State {
         let render_groups: Vec<Rc<RefCell<dyn RenderGroup>>> = vec![
             light_render_group.clone(),
             render_group,
-            render_group_ceil,
+            render_group_floor,
             model_render_group,
             sword_model_render_group,
             render_group_sphere.clone(),
