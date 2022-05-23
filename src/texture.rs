@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::num::NonZeroU32;
 
 use anyhow::*;
+use cfg_if::cfg_if;
 use image::GenericImageView;
 use crate::{SAMPLE_COUNT, TEXTURE_SAMPLE_COUNT};
 
@@ -86,6 +87,12 @@ impl Texture {
         label: Option<&str>,
         mip_level_count: u32
     ) -> Result<Self> {
+
+        cfg_if::cfg_if! {
+        if #[cfg(target_arch = "wasm32")] {
+                let mip_level_count = 1;
+        }
+    }
         let rgba = img.to_rgba8();
         let dimensions = img.dimensions();
 
