@@ -11,7 +11,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 cfg-if = "1"
 winit = "0.26"
-wgpu = "0.12"
+wgpu = { git = "https://github.com/gfx-rs/wgpu"}
 env_logger = "0.9"
 log = "0.4"
 pollster = "0.2"
@@ -27,7 +27,7 @@ rayon = "1.5.3"
 reqwest = { version = "0.11" }
 console_error_panic_hook = "0.1"
 console_log = {version = "0.2", features = ["color"]}
-wgpu = { version = "0.12", features = ["webgl"]}
+wgpu = { features = ["webgl"], git = "https://github.com/gfx-rs/wgpu"}
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = [
