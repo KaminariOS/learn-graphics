@@ -156,12 +156,11 @@ impl State {
             &device,
         );
         let light_render_group = {
-            let light_uniform = LightUniform::default();
             let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
                 label: Some("Light Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("light.wgsl").into()),
             });
-            LightRenderGroup::new(&device, light_uniform, shader, &camera, &config)
+            LightRenderGroup::new(&device, vec![LightUniform::default()], shader, &camera, &config)
         };
         let render_group = {
             let height = 26.0;

@@ -20,8 +20,13 @@ struct Light {
     // cutoff_inner_outer_eps[4] == 0? no_cutoff: cutoff
     cutoff_inner_outer_eps: vec4<f32>
 }
+
+struct Lights {
+    lights: array<Light>
+}
+
 @group(1) @binding(0)
-var<uniform> light: Light;
+var<storage, read> lights: Lights;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -99,7 +104,7 @@ fn multisample_tex(tex_coords: vec2<f32>, sample_count: f32) -> vec4<f32> {
 }
 @fragment
 fn fs_main(f_in: VertexOutput) -> @location(0) vec4<f32> {
-
+     let light = lights.lights[0];
      let dis = length(light.pos_dir.xyz - f_in.world_position);
      let light_color = light.color / (light.point_clq[0] + light.point_clq[1] * dis + light.point_clq[2] * dis * dis);
      let ambient_strength = light.ambient_strength;

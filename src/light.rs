@@ -42,7 +42,7 @@ impl Default for LightUniform {
 }
 
 pub struct LightRenderGroup {
-    light_uniform: LightUniform,
+    light_uniforms: Vec<LightUniform>,
     buffer: wgpu::Buffer,
     pub light_bind_group_layout: wgpu::BindGroupLayout,
     light_bind_group: wgpu::BindGroup,
@@ -53,16 +53,28 @@ pub struct LightRenderGroup {
 
 
 impl LightRenderGroup {
-    pub fn new(device: &Device, light_uniform: LightUniform, shader: ShaderModule, camera: &Camera, config: &SurfaceConfiguration) -> Rc<RefCell<Self>> {
+    pub fn new(device: &Device, light_uniforms: Vec<LightUniform>, shader: ShaderModule, camera: &Camera, config: &SurfaceConfiguration) -> Rc<RefCell<Self>> {
         let buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Light VB"),
-                contents: bytemuck::cast_slice(&[light_uniform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                contents: bytemuck::cast_slice(&light_uniforms),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             }
         );
         let light_bind_group_layout =
-            device.create_bind_group_layout(&uniform_desc("LightUniform BindGroupLayout"));
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage {read_only: true},
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("Light Storage BindGroupLayout"),
+        });
 
         let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &light_bind_group_layout,
@@ -103,7 +115,7 @@ impl LightRenderGroup {
             multiview: None
         });
         Rc::new(RefCell::new(Self {
-            light_uniform,
+            light_uniforms,
             buffer,
             light_bind_group_layout,
             light_bind_group,
@@ -114,9 +126,9 @@ impl LightRenderGroup {
 
     pub fn update_light(&mut self, dt: Duration, queue: &wgpu::Queue) {
         let rotation: cgmath::Matrix4<f32> = cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(-100. * dt.as_secs_f32())).into();
-        let pos = cgmath::Vector4::from(self.light_uniform.pos_dir);
-        self.light_uniform.pos_dir = (rotation * pos).into();
-        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.light_uniform]));
+        let pos = cgmath::Vector4::from(self.light_uniforms[0].pos_dir);
+        self.light_uniforms[0].pos_dir = (rotation * pos).into();
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&self.light_uniforms));
     }
 
 }

@@ -20,8 +20,12 @@ struct Light {
     cutoff_inner_outer_eps: vec4<f32>
 }
 
+struct Lights {
+    lights: array<Light>
+}
+
 @group(1) @binding(0)
-var<uniform> light: Light;
+var<storage, read> lights: Lights;
 
 struct VertexInput {
     @location(0) position: vec3<f32>
@@ -36,6 +40,7 @@ struct VertexOutput {
 fn vs_main(
     model: VertexInput,
 ) -> VertexOutput {
+    let light = lights.lights[0];
     let scale = 0.25;
     var v_out: VertexOutput;
     v_out.clip_position = camera.view_proj * vec4<f32>(model.position * scale + light.pos_dir.xyz, 1.0);

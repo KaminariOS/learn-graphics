@@ -21,8 +21,12 @@ struct Light {
     cutoff_inner_outer_eps: vec4<f32>
 }
 
+struct Lights {
+    lights: array<Light>
+}
+
 @group(1) @binding(0)
-var<uniform> light: Light;
+var<storage, read> lights: Lights;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -79,6 +83,7 @@ var t_diffuse: texture_2d<f32>;
 var s_diffuse: sampler;
 
 fn multisample_tex(tex_coords: vec2<f32>, sample_count: f32) -> vec4<f32> {
+
     let tex_c = vec2<f32>(tex_coords.x % 1.0, 1.0 - tex_coords.y % 1.0);
     let normal_tex_cord = vec2<i32>(vec2<f32>(textureDimensions(t_diffuse)) * tex_c);
     var obj_color = vec4<f32>(0.0);
@@ -91,7 +96,7 @@ fn multisample_tex(tex_coords: vec2<f32>, sample_count: f32) -> vec4<f32> {
 }
 @fragment
 fn fs_main(f_in: VertexOutput) -> @location(0) vec4<f32> {
-
+     let light = lights.lights[0];
      let dis = length(light.pos_dir.xyz - f_in.world_position);
      let light_color = light.color / (light.point_clq[0] + light.point_clq[1] * dis + light.point_clq[2] * dis * dis);
      let ambient_strength = light.ambient_strength;
