@@ -10,24 +10,34 @@ use crate::geo_gen::GeoObj;
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct LightUniform {
-    pub(crate) position: [f32; 4],
-    // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
-    pub(crate) color: [f32; 4],
-    // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
+    // pos_dir[3] == 1? position: direction
+    pub pos_dir: [f32; 4],
+    pub color: [f32; 3],
+    padding_0: f32,
+    pub diffuse_strength: f32,
     pub ambient_strength: f32,
     pub specular_strength: f32,
-    _padding1: [f32; 2],
+    padding_1: f32,
+    // constant, linear, quadratic
+    // point_clq[4] == 0? no_attenuation: attenuation
+    point_clq: [f32; 4],
+    // cutoff_inner_outer_eps[4] == 0? no_cutoff: cutoff
+    cutoff_inner_outer_eps: [f32; 4]
 }
 
 impl Default for LightUniform {
     fn default() -> Self {
-       Self {
-           position: [40., 10., -10.0, 1.],
-           color: [1., 1., 1., 1.],
-           ambient_strength: 0.1,
-           _padding1: [0.; 2],
-           specular_strength: 1.0,
-       }
+        Self {
+            pos_dir: [40., 10., -10.0, 1.],
+            color: [1.0; 3],
+            padding_0: 0.,
+            diffuse_strength: 1.0,
+            ambient_strength: 0.1,
+            specular_strength: 0.3,
+            padding_1: 0.,
+            point_clq: [1., 0.045, 0.0075, 1.],
+            cutoff_inner_outer_eps: [0.; 4]
+        }
     }
 }
 
@@ -39,6 +49,8 @@ pub struct LightRenderGroup {
     light_render_pipeline: wgpu::RenderPipeline,
     obj: GeoObj
 }
+
+
 
 impl LightRenderGroup {
     pub fn new(device: &Device, light_uniform: LightUniform, shader: ShaderModule, camera: &Camera, config: &SurfaceConfiguration) -> Rc<RefCell<Self>> {
@@ -102,8 +114,8 @@ impl LightRenderGroup {
 
     pub fn update_light(&mut self, dt: Duration, queue: &wgpu::Queue) {
         let rotation: cgmath::Matrix4<f32> = cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(-100. * dt.as_secs_f32())).into();
-        let pos = cgmath::Vector4::from(self.light_uniform.position);
-        self.light_uniform.position = (rotation * pos).into();
+        let pos = cgmath::Vector4::from(self.light_uniform.pos_dir);
+        self.light_uniform.pos_dir = (rotation * pos).into();
         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.light_uniform]));
     }
 

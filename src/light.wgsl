@@ -7,11 +7,18 @@ struct CameraUniform {
 var<uniform> camera: CameraUniform;
 
 struct Light {
-    position: vec4<f32>,
-    color: vec4<f32>,
+    // pos_dir[3] == 1? position: direction
+    pos_dir: vec4<f32>,
+    color: vec3<f32>,
+    diffuse_strength: f32,
     ambient_strength: f32,
-    specular_strength: f32
-};
+    specular_strength: f32,
+    // constant, linear, quadratic
+    // point_clq[4] == 0? no_attenuation: attenuation
+    point_clq: vec4<f32>,
+    // cutoff_inner_outer_eps[4] == 0? no_cutoff: cutoff
+    cutoff_inner_outer_eps: vec4<f32>
+}
 
 @group(1) @binding(0)
 var<uniform> light: Light;
@@ -31,8 +38,8 @@ fn vs_main(
 ) -> VertexOutput {
     let scale = 0.25;
     var v_out: VertexOutput;
-    v_out.clip_position = camera.view_proj * vec4<f32>(model.position * scale + light.position.xyz, 1.0);
-    v_out.color = light.color.rgb;
+    v_out.clip_position = camera.view_proj * vec4<f32>(model.position * scale + light.pos_dir.xyz, 1.0);
+    v_out.color = light.color;
     return v_out;
 }
 

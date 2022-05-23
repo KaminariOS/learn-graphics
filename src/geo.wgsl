@@ -8,11 +8,19 @@ struct CameraUniform {
 var<uniform> camera: CameraUniform;
 
 struct Light {
-    position: vec4<f32>,
-    color: vec4<f32>,
+    // pos_dir[3] == 1? position: direction
+    pos_dir: vec4<f32>,
+    color: vec3<f32>,
+    diffuse_strength: f32,
     ambient_strength: f32,
-    specular_strength: f32
-};
+    specular_strength: f32,
+    // constant, linear, quadratic
+    // point_clq[4] == 0? no_attenuation: attenuation
+    point_clq: vec4<f32>,
+    // cutoff_inner_outer_eps[4] == 0? no_cutoff: cutoff
+    cutoff_inner_outer_eps: vec4<f32>
+}
+
 @group(1) @binding(0)
 var<uniform> light: Light;
 
@@ -84,12 +92,11 @@ fn multisample_tex(tex_coords: vec2<f32>, sample_count: f32) -> vec4<f32> {
 @fragment
 fn fs_main(f_in: VertexOutput) -> @location(0) vec4<f32> {
 
-     let dis = length(light.position.xyz - f_in.world_position);
-     let light_color = light.color.rgb;
-     // (1.0 + 0.045 * dis + 0.0075 * dis * dis);
+     let dis = length(light.pos_dir.xyz - f_in.world_position);
+     let light_color = light.color / (light.point_clq[0] + light.point_clq[1] * dis + light.point_clq[2] * dis * dis);
      let ambient_strength = light.ambient_strength;
      let ambient_color = light_color * ambient_strength;
-     let light_dir = normalize(light.position.xyz - f_in.world_position);
+     let light_dir = normalize(light.pos_dir.xyz - f_in.world_position);
      let view_dir = normalize(camera.view_pos.xyz - f_in.world_position);
      let half_dir = normalize(view_dir + light_dir);
 

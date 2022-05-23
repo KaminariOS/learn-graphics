@@ -120,7 +120,7 @@ pub struct GeoRenderGroup {
 impl GeoRenderGroup {
     pub fn new(device: &wgpu::Device, camera: &Camera, entity: Entity, instances: world_space::Instances, config: &SurfaceConfiguration, light_render_group: &LightRenderGroup) -> Rc<RefCell<Self>> {
         let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: Some(" Geo Shader"),
+            label: Some("Geo Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("geo.wgsl").into()),
         });
         let render_pipeline_layout =

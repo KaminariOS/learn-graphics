@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::num::NonZeroU32;
 
 use anyhow::*;
-use cfg_if::cfg_if;
 use image::GenericImageView;
 use crate::{SAMPLE_COUNT, TEXTURE_SAMPLE_COUNT};
 
