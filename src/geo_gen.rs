@@ -78,7 +78,6 @@ impl GeoObj {
 
 pub struct Entity {
     pub(crate) obj: GeoObj,
-
     pub texture_bind_group_layout: wgpu::BindGroupLayout,
     pub texture_bind_group: wgpu::BindGroup
 }

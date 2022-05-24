@@ -20,7 +20,7 @@ const SAFE_FRAC_PI_2: f32 = FRAC_PI_2 - 0.0001;
 pub struct Camera {
     pub(crate) view: CameraView,
     pub(crate) projection: Projection,
-    camera_uniform: CameraUniform,
+    pub camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     pub camera_bind_group: wgpu::BindGroup,
     pub camera_bind_group_layout: wgpu::BindGroupLayout
@@ -72,10 +72,10 @@ impl Camera {
 #[repr(C)]
 // This is so we can store this in a buffer
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct CameraUniform {
+pub struct CameraUniform {
     // We can't use cgmath with bytemuck directly so we'll have
     // to convert the Matrix4 into a 4x4 f32 array
-    view_position: [f32; 4],
+    pub view_position: [f32; 4],
     view_proj: [[f32; 4]; 4],
 }
 
@@ -119,7 +119,13 @@ impl CameraView {
             pitch: pitch.into(),
         }
     }
-
+    pub fn get_dir(&self) -> Vector3<f32> {
+        Vector3::new(
+            self.yaw.0.cos(),
+            self.pitch.0.sin(),
+            self.yaw.0.sin()
+        ).normalize()
+    }
     pub fn calc_matrix(&self) -> Matrix4<f32> {
         Matrix4::look_to_rh(
             self.position,

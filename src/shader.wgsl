@@ -8,9 +8,9 @@ struct CameraUniform {
 var<uniform> camera: CameraUniform;
 
 struct Light {
-    // pos_dir[3] == 1? position: direction
-    pos_dir: vec4<f32>,
-    color: vec3<f32>,
+    position: vec3<f32>,
+    direction: vec3<f32>,
+    color: vec4<f32>,
     diffuse_strength: f32,
     ambient_strength: f32,
     specular_strength: f32,
@@ -102,25 +102,54 @@ fn multisample_tex(tex_coords: vec2<f32>, sample_count: f32) -> vec4<f32> {
     obj_color = obj_color / sample_count;
     return obj_color;
 }
+
+fn attenuation(light: Light, world_position: vec3<f32>) -> vec3<f32> {
+    var light_color = light.color.rgb;
+    if light.point_clq[3] != 0.0 {
+            let dis = length(light.position - world_position);
+            light_color = light_color / (light.point_clq[0] + light.point_clq[1] * dis + light.point_clq[2] * dis * dis);
+    }
+    return light_color;
+}
+
+fn cutoff(light: Light, dir: vec3<f32>) -> f32 {
+    if light.cutoff_inner_outer_eps[3] == 0.0 {
+        return 1.0;
+    }
+    let theta = dot(-light.direction, dir);
+    let epsilon = light.cutoff_inner_outer_eps[2];
+    let intensity = clamp((theta - light.cutoff_inner_outer_eps[1]) / epsilon, 0.0, 1.0);
+    return intensity;
+}
+
 @fragment
 fn fs_main(f_in: VertexOutput) -> @location(0) vec4<f32> {
-     let light = lights.lights[0];
-     let dis = length(light.pos_dir.xyz - f_in.world_position);
-     let light_color = light.color / (light.point_clq[0] + light.point_clq[1] * dis + light.point_clq[2] * dis * dis);
+     var res = vec3<f32>(0.);
+     var light_count = i32(arrayLength(&lights.lights));
+     let v_tex = vec2<f32>(f_in.tex_coords.x, 1.0 - f_in.tex_coords.y);
+     let obj_color = textureSample(t_diffuse, s_diffuse, v_tex);
+
+     for(var i: i32 = 0; i < light_count; i++) {
+     let light = lights.lights[i];
+     let dis = length(light.position - f_in.world_position);
+     let light_color = attenuation(light, f_in.world_position);
      let ambient_strength = light.ambient_strength;
      let ambient_color = light_color * ambient_strength * material_uniform.ambient;
-     let light_dir = normalize(light.pos_dir.xyz - f_in.world_position);
+     let light_dir = normalize(light.position - f_in.world_position);
      let view_dir = normalize(camera.view_pos.xyz - f_in.world_position);
      let half_dir = normalize(view_dir + light_dir);
 
+     let cut_off_intensity = cutoff(light, -light_dir);
+
      let diffuse_strength = max(dot(f_in.world_normal, light_dir), 0.0);
-     let diffuse_color = light_color * diffuse_strength * material_uniform.diffuse;
+     let diffuse_color = light_color * diffuse_strength * material_uniform.diffuse * cut_off_intensity;
 
      let specular_strength = pow(max(dot(f_in.world_normal, half_dir), 0.0), 32.0);
-     let specular_color = light.specular_strength * specular_strength * light_color * material_uniform.specular;
+     let specular_color = light.specular_strength * specular_strength * light_color * material_uniform.specular * cut_off_intensity;
 
     let v_tex = vec2<f32>(f_in.tex_coords.x, 1.0 - f_in.tex_coords.y);
     let obj_color = textureSample(t_diffuse, s_diffuse, v_tex);
-    let res = (ambient_color + diffuse_color + specular_color) * obj_color.xyz;
+    res += (ambient_color + diffuse_color + specular_color) * obj_color.xyz;
+     }
     return vec4<f32>(res, obj_color.a);
 }

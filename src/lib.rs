@@ -3,7 +3,8 @@ use std::iter;
 use std::rc::Rc;
 use std::time::Duration;
 use cgmath::prelude::*;
-use cgmath::{Quaternion, Vector3};
+use cgmath::{Deg, Quaternion, Vector3};
+use cgmath::num_traits::FloatConst;
 
 mod camera;
 use camera::Camera;
@@ -83,7 +84,7 @@ fn uniform_desc(label_str: &str) -> wgpu::BindGroupLayoutDescriptor {
     }
 }
 
-struct State {
+pub struct State {
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -155,12 +156,16 @@ impl State {
             Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 800.0),
             &device,
         );
+
         let light_render_group = {
-            let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-                label: Some("Light Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("light.wgsl").into()),
-            });
-            LightRenderGroup::new(&device, vec![LightUniform::default()], shader, &camera, &config)
+            LightRenderGroup::new(&device, vec![
+                (LightUniform{ color: [1., 1., 1., 1.], ..Default::default()},geo_gen::create_cube(10.0, &device)),
+                (LightUniform { cutoff_inner_outer_eps:
+                    light::cal_cutoff(4.0, 30.0),
+                ambient_strength: 0.01,
+                 ..Default::default()}, geo_gen::create_sphere(10., 20, 20, &device))
+            ],
+                                  &camera, &config)
         };
         let render_group = {
             let height = 26.0;
@@ -312,7 +317,7 @@ impl State {
     fn update(&mut self, dt: std::time::Duration) {
         self.camera_controller.update_camera(&mut self.camera.view, dt);
         self.camera.update_camera(&self.queue);
-        self.light_render_group.borrow_mut().update_light(dt, &self.queue);
+        self.light_render_group.borrow_mut().update_light(dt, &self.queue, self);
         self.total_duration += dt;
         let count = (3 + self.total_duration.as_secs() % 15) as usize;
         self.render_group_sphere.borrow_mut().entity.obj = create_sphere(10.0, count, count - 1, &self.device);
