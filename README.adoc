@@ -7,6 +7,12 @@
 wasm-pack build -d build/pkg --target web
 ----
 
+.Flag for WebGPU backend:
+[,]
+----
+RUSTFLAGS=--cfg=web_sys_unstable_api
+----
+
 Checker texture: https://polycount.com/discussion/186513/free-checker-pattern-texture
 
 Girl model: https://www.cgtrader.com/free-3d-models/character/woman/cute-girl-5122a81c-b888-4276-affd-71031a1ddb5a

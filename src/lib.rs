@@ -3,8 +3,7 @@ use std::iter;
 use std::rc::Rc;
 use std::time::Duration;
 use cgmath::prelude::*;
-use cgmath::{Deg, Quaternion, Vector3};
-use cgmath::num_traits::FloatConst;
+use cgmath::{Quaternion, Vector3};
 
 mod camera;
 use camera::Camera;

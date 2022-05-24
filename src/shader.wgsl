@@ -22,11 +22,11 @@ struct Light {
 }
 
 struct Lights {
-    lights: array<Light>
+    lights: array<Light, 2>
 }
 
 @group(1) @binding(0)
-var<storage, read> lights: Lights;
+var<uniform> lights: Lights;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -124,8 +124,9 @@ fn cutoff(light: Light, dir: vec3<f32>) -> f32 {
 
 @fragment
 fn fs_main(f_in: VertexOutput) -> @location(0) vec4<f32> {
+     let light_count = 2;
      var res = vec3<f32>(0.);
-     var light_count = i32(arrayLength(&lights.lights));
+     // let light_count = i32(arrayLength(&lights.lights));
      let v_tex = vec2<f32>(f_in.tex_coords.x, 1.0 - f_in.tex_coords.y);
      let obj_color = textureSample(t_diffuse, s_diffuse, v_tex);
 
@@ -146,10 +147,7 @@ fn fs_main(f_in: VertexOutput) -> @location(0) vec4<f32> {
 
      let specular_strength = pow(max(dot(f_in.world_normal, half_dir), 0.0), 32.0);
      let specular_color = light.specular_strength * specular_strength * light_color * material_uniform.specular * cut_off_intensity;
-
-    let v_tex = vec2<f32>(f_in.tex_coords.x, 1.0 - f_in.tex_coords.y);
-    let obj_color = textureSample(t_diffuse, s_diffuse, v_tex);
-    res += (ambient_color + diffuse_color + specular_color) * obj_color.xyz;
+    res += (ambient_color + diffuse_color + specular_color) * obj_color.rgb;
      }
     return vec4<f32>(res, obj_color.a);
 }

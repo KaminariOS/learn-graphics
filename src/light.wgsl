@@ -22,11 +22,11 @@ struct Light {
 }
 
 struct Lights {
-    lights: array<Light>
+    lights: array<Light, 2>
 }
 
 @group(1) @binding(0)
-var<storage, read> light: Light;
+var<uniform> light: Light;
 
 struct VertexInput {
     @location(0) position: vec3<f32>

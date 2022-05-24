@@ -22,11 +22,11 @@ struct Light {
 }
 
 struct Lights {
-    lights: array<Light>
+    lights: array<Light, 2>
 }
 
 @group(1) @binding(0)
-var<storage, read> lights: Lights;
+var<uniform> lights: Lights;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -118,7 +118,8 @@ fn cutoff(light: Light, dir: vec3<f32>) -> f32 {
 @fragment
 fn fs_main(f_in: VertexOutput) -> @location(0) vec4<f32> {
      var res = vec3<f32>(0.);
-     var light_count = i32(arrayLength(&lights.lights));
+     //let light_count = i32(arrayLength(&lights.lights));
+     let light_count = 2;
 
      let v_tex = vec2<f32>(f_in.tex_coords.x, 1.0 - f_in.tex_coords.y);
      let obj_color = textureSample(t_diffuse, s_diffuse, v_tex);

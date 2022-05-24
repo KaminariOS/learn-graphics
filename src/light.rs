@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 use cgmath::{Angle, Deg, Rotation3};
-use wgpu::{BindGroup, Buffer, Device, Queue, RenderPass, SurfaceConfiguration};
+use wgpu::{BindGroup, Buffer, Device, RenderPass, SurfaceConfiguration};
 use wgpu::util::DeviceExt;
 use crate::{Camera, geo_gen, MULTI_SAMPLE, PRIMITIVE, RenderGroup, State, texture};
 use crate::geo_gen::GeoObj;
@@ -74,7 +74,7 @@ impl LightRenderGroup {
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Light VB"),
                 contents: bytemuck::cast_slice(&light_uniforms),
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }
         );
         let light_bind_group_layout =
@@ -83,7 +83,7 @@ impl LightRenderGroup {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage {read_only: true},
+                    ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
                     min_binding_size: None,
                 },
@@ -96,7 +96,7 @@ impl LightRenderGroup {
                 &wgpu::util::BufferInitDescriptor {
                     label: Some("Light VB"),
                     contents: bytemuck::cast_slice(&[*light_uniform]),
-                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 }
             );
             let bind_group_per_light = device.create_bind_group(&wgpu::BindGroupDescriptor {
