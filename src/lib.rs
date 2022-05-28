@@ -158,11 +158,16 @@ impl State {
 
         let light_render_group = {
             LightRenderGroup::new(&device, vec![
-                (LightUniform{ color: [1., 1., 1., 1.], ..Default::default()},geo_gen::create_cube(10.0, &device)),
+                (LightUniform{
+                    color: [1., 1., 1., 1.],
+                    point_clq: [0.0; 4],
+                    ..Default::default()
+                },geo_gen::create_cube(10.0, &device)),
                 (LightUniform { cutoff_inner_outer_eps:
                     light::cal_cutoff(4.0, 30.0),
-                ambient_strength: 0.01,
-                 ..Default::default()}, geo_gen::create_sphere(10., 20, 20, &device))
+                    ambient_strength: 0.01,
+                  ..Default::default()
+                }, geo_gen::create_sphere(10., 20, 20, &device))
             ],
                                   &camera, &config)
         };
@@ -185,7 +190,7 @@ impl State {
         };
         let render_group_floor = {
             let obj = geo_gen::create_floor(2800.0, 2800.0, &device);
-            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("albedo.png"), 8);
+            let entity_cube = Entity::new(&device, &queue, obj, include_bytes!("albedo.png"), 11);
             let instances = Instances::new(vec![
                 InstanceTransform {
                     position: Vector3::new(00.0, FLOOR_HEIGHT, 0.0),

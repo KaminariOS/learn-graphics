@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::num::NonZeroU32;
+use std::num::{NonZeroU32, NonZeroU8, NonZeroUsize};
 
 use anyhow::*;
 use image::GenericImageView;
@@ -137,6 +137,7 @@ impl Texture {
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
             mipmap_filter: wgpu::FilterMode::Linear,
+            anisotropy_clamp: NonZeroU8::new(16).filter(|_| mip_level_count != 1),
             ..Default::default()
         });
         if mip_level_count != 1 {
