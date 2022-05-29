@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 use std::num::{NonZeroU32, NonZeroU8, NonZeroUsize};
 
+use crate::{SAMPLE_COUNT, TEXTURE_SAMPLE_COUNT};
 use anyhow::*;
 use image::GenericImageView;
-use crate::{SAMPLE_COUNT, TEXTURE_SAMPLE_COUNT};
 
 pub struct Texture {
     pub texture: wgpu::Texture,
@@ -14,15 +14,14 @@ pub struct Texture {
 const TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 
 impl Texture {
-
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
     pub fn create_depth_state() -> Option<wgpu::DepthStencilState> {
-         Some(wgpu::DepthStencilState {
+        Some(wgpu::DepthStencilState {
             format: Texture::DEPTH_FORMAT,
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::Less, // 1.
-            stencil: wgpu::StencilState::default(), // 2.
+            stencil: wgpu::StencilState::default(),     // 2.
             bias: wgpu::DepthBiasState::default(),
         })
     }
@@ -73,7 +72,7 @@ impl Texture {
         queue: &wgpu::Queue,
         bytes: &[u8],
         label: &str,
-        mip_level_count: u32
+        mip_level_count: u32,
     ) -> Result<Self> {
         let img = image::load_from_memory(bytes)?;
         Self::from_image(device, queue, &img, Some(label), mip_level_count)
@@ -84,7 +83,7 @@ impl Texture {
         queue: &wgpu::Queue,
         img: &image::DynamicImage,
         label: Option<&str>,
-        mip_level_count: u32
+        mip_level_count: u32,
     ) -> Result<Self> {
         #[cfg(target_arch = "wasm32")]
         let mip_level_count = 1;
@@ -181,8 +180,9 @@ fn generate_mipmaps(
     texture: &wgpu::Texture,
     mip_count: u32,
 ) {
-    let mut encoder =
-        device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Mipmap encoder") });
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("Mipmap encoder"),
+    });
     let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
         label: Some("Mipmap"),
         source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("blit.wgsl"))),

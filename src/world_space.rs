@@ -1,6 +1,6 @@
 use std::ops::Range;
-use wgpu::{Buffer, Device};
 use wgpu::util::DeviceExt;
+use wgpu::{Buffer, Device};
 
 pub struct InstanceTransform {
     pub(crate) position: cgmath::Vector3<f32>,
@@ -17,7 +17,9 @@ struct InstanceRaw {
 impl InstanceTransform {
     fn to_raw(&self) -> InstanceRaw {
         InstanceRaw {
-            model: (cgmath::Matrix4::from_translation(self.position) * cgmath::Matrix4::from(self.rotation)).into(),
+            model: (cgmath::Matrix4::from_translation(self.position)
+                * cgmath::Matrix4::from(self.rotation))
+            .into(),
             normal: cgmath::Matrix3::from(self.rotation).into(),
         }
     }
@@ -84,26 +86,26 @@ pub struct Instances {
 
 impl Instances {
     fn get_raw_and_buffer(instance_transforms: &Vec<InstanceTransform>, device: &Device) -> Buffer {
-    let instances_raw: Vec<InstanceRaw> = instance_transforms.iter().map(InstanceTransform::to_raw).collect();
-    let instance_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Instance Buffer"),
-                contents: bytemuck::cast_slice(&instances_raw),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
+        let instances_raw: Vec<InstanceRaw> = instance_transforms
+            .iter()
+            .map(InstanceTransform::to_raw)
+            .collect();
+        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Instance Buffer"),
+            contents: bytemuck::cast_slice(&instances_raw),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
         instance_buffer
     }
     pub(crate) fn new(instance_transforms: Vec<InstanceTransform>, device: &Device) -> Self {
         let instance_buffer = Self::get_raw_and_buffer(&instance_transforms, device);
         Self {
             instance_transforms,
-            instance_buffer
+            instance_buffer,
         }
     }
 
     pub fn get_instance_range(&self) -> Range<u32> {
         0..self.instance_transforms.len() as u32
     }
-
 }

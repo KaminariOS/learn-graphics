@@ -3,20 +3,21 @@ use std::io::{BufReader, Cursor};
 use cfg_if::cfg_if;
 use wgpu::util::DeviceExt;
 
-use crate::{model, texture};
 use crate::geo_gen::Vertex;
 use crate::model::MaterialUniform;
+use crate::{model, texture};
 use rayon::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
-    fn format_url(file_name: &str) -> reqwest::Url {
+fn format_url(file_name: &str) -> reqwest::Url {
     let window = web_sys::window().unwrap();
     let location = window.location();
     let base = reqwest::Url::parse(&format!(
         "{}/{}/",
         location.origin().unwrap(),
         option_env!("RES_PATH").unwrap_or("obj"),
-    )).unwrap();
+    ))
+    .unwrap();
     base.join(file_name).unwrap()
 }
 
@@ -73,7 +74,7 @@ pub async fn load_model(
     file_name: &str,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    scale: f32
+    scale: f32,
 ) -> anyhow::Result<model::Model> {
     let obj_text = load_string(file_name).await?;
     let obj_cursor = Cursor::new(obj_text);
@@ -112,31 +113,26 @@ pub async fn load_model(
             ],
             label: None,
         });
-        let material_uniform_group = MaterialUniform::new(
-            m.ambient,
-            m.diffuse,
-            m.specular,
-            m.shininess,
-        );
+        let material_uniform_group =
+            MaterialUniform::new(m.ambient, m.diffuse, m.specular, m.shininess);
         materials.push(model::Material {
             name: m.name,
             diffuse_texture,
             bind_group,
-            uniform_bind_group: material_uniform_group.create_buffer_and_bindgroup(device)
+            uniform_bind_group: material_uniform_group.create_buffer_and_bindgroup(device),
         })
     }
 
     let iter = {
         cfg_if::cfg_if! {
-                if #[cfg(target_arch = "wasm32")] {
-                    models.into_iter()
-                } else {
-                    models.into_par_iter()
-                }
+            if #[cfg(target_arch = "wasm32")] {
+                models.into_iter()
+            } else {
+                models.into_par_iter()
             }
+        }
     };
-    let meshes =
-        iter
+    let meshes = iter
         .map(|m| {
             let vertices = (0..m.mesh.positions.len() / 3)
                 .map(|i| Vertex {
@@ -175,5 +171,9 @@ pub async fn load_model(
         })
         .collect::<Vec<_>>();
 
-    Ok(model::Model { meshes, materials, texture_bind_group_layout})
+    Ok(model::Model {
+        meshes,
+        materials,
+        texture_bind_group_layout,
+    })
 }
