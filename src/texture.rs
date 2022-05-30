@@ -11,7 +11,7 @@ pub struct Texture {
     pub sampler: wgpu::Sampler,
 }
 
-const TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+pub const TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 
 impl Texture {
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -20,7 +20,7 @@ impl Texture {
         Some(wgpu::DepthStencilState {
             format: Texture::DEPTH_FORMAT,
             depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::Less, // 1.
+            depth_compare: wgpu::CompareFunction::LessEqual, // 1.
             stencil: wgpu::StencilState::default(),     // 2.
             bias: wgpu::DepthBiasState::default(),
         })
@@ -271,3 +271,5 @@ fn generate_mipmaps(
     }
     queue.submit(Some(encoder.finish()));
 }
+
+

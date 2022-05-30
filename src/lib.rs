@@ -16,6 +16,7 @@ mod model;
 mod resources;
 mod texture;
 mod world_space;
+mod skybox;
 
 use model::ModelRenderGroup;
 
@@ -162,7 +163,7 @@ impl State {
                     (
                         LightUniform {
                             color: [1., 1., 1., 1.],
-                            point_clq: [0.0; 4],
+                            // point_clq: [0.0; 4],
                             ..Default::default()
                         },
                         geo_gen::create_cube(10.0, &device),
@@ -292,7 +293,9 @@ impl State {
                 &light_render_group.borrow(),
             )
         };
+        let skybox = skybox::create(&device, &config, &queue, &camera).await;
         let render_groups: Vec<Rc<RefCell<dyn RenderGroup>>> = vec![
+            skybox,
             light_render_group.clone(),
             render_group,
             render_group_floor,

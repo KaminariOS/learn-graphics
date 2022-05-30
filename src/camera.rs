@@ -1,5 +1,5 @@
 use crate::uniform_desc;
-use cgmath::{perspective, InnerSpace, Matrix4, Point3, Rad, Vector3, Zero};
+use cgmath::{perspective, InnerSpace, Matrix4, Point3, Rad, Vector3, Zero, SquareMatrix};
 use std::f32::consts::FRAC_PI_2;
 use std::time::Duration;
 use wgpu::util::DeviceExt;
@@ -75,6 +75,8 @@ pub struct CameraUniform {
     // to convert the Matrix4 into a 4x4 f32 array
     pub view_position: [f32; 4],
     view_proj: [[f32; 4]; 4],
+    proj_inv: [[f32; 4]; 4],
+    view: [[f32; 4]; 4],
 }
 
 impl CameraUniform {
@@ -83,12 +85,18 @@ impl CameraUniform {
         Self {
             view_position: [0.0; 4],
             view_proj: cgmath::Matrix4::identity().into(),
+            proj_inv: cgmath::Matrix4::identity().into(),
+            view: cgmath::Matrix4::identity().into(),
         }
     }
 
     fn update_view_proj(&mut self, camera: &CameraView, projection: &Projection) {
         self.view_position = camera.position.to_homogeneous().into();
-        self.view_proj = (projection.calc_matrix() * camera.calc_matrix()).into();
+        let proj = projection.calc_matrix();
+        let view = camera.calc_matrix();
+        self.view_proj = (proj * view).into();
+        self.view = view.into();
+        self.proj_inv = proj.invert().expect("Should be invertible").into();
     }
 }
 
