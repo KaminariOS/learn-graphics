@@ -1,5 +1,5 @@
 use crate::uniform_desc;
-use cgmath::{perspective, InnerSpace, Matrix4, Point3, Rad, Vector3, Zero, SquareMatrix};
+use cgmath::{perspective, InnerSpace, Matrix4, Point3, Rad, SquareMatrix, Vector3, Zero};
 use std::f32::consts::FRAC_PI_2;
 use std::time::Duration;
 use wgpu::util::DeviceExt;
@@ -81,7 +81,6 @@ pub struct CameraUniform {
 
 impl CameraUniform {
     fn new() -> Self {
-        use cgmath::SquareMatrix;
         Self {
             view_position: [0.0; 4],
             view_proj: cgmath::Matrix4::identity().into(),
@@ -125,11 +124,7 @@ impl CameraView {
         Vector3::new(self.yaw.0.cos(), self.pitch.0.sin(), self.yaw.0.sin()).normalize()
     }
     pub fn calc_matrix(&self) -> Matrix4<f32> {
-        Matrix4::look_to_rh(
-            self.position,
-            Vector3::new(self.yaw.0.cos(), self.pitch.0.sin(), self.yaw.0.sin()).normalize(),
-            Vector3::unit_y(),
-        )
+        Matrix4::look_to_rh(self.position, self.get_dir(), Vector3::unit_y())
     }
 }
 

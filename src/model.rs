@@ -9,8 +9,8 @@ use wgpu::{
 
 use crate::geo_gen::Vertex;
 use crate::{
-    texture, uniform_desc, world_space, Camera, LightRenderGroup, RenderGroup, MULTI_SAMPLE,
-    PRIMITIVE,
+    texture, uniform_desc, world_space, Camera, LightRenderGroup, RenderGroup, ShadowPass,
+    MULTI_SAMPLE, PRIMITIVE,
 };
 
 pub struct Material {
@@ -118,6 +118,7 @@ impl ModelRenderGroup {
         camera: &Camera,
         config: &SurfaceConfiguration,
         light_render_group: &LightRenderGroup,
+        shadow_pass: &ShadowPass,
     ) -> Rc<RefCell<Self>> {
         let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: Some("Model Shader"),
@@ -130,7 +131,7 @@ impl ModelRenderGroup {
                     &camera.camera_bind_group_layout,
                     &light_render_group.light_bind_group_layout,
                     &model.texture_bind_group_layout,
-                    &model.materials[0].uniform_bind_group.bind_group_layout,
+                    &shadow_pass.shadow_map_bind_group_layout, // &model.materials[0].uniform_bind_group.bind_group_layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -177,23 +178,36 @@ impl ModelRenderGroup {
         render_pass.set_vertex_buffer(1, mesh.vertex_buffer.slice(..));
         render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         render_pass.set_bind_group(2, &material.bind_group, &[]);
-        render_pass.set_bind_group(3, &material.uniform_bind_group.bind_group, &[]);
+        // render_pass.set_bind_group(3, &material.uniform_bind_group.bind_group, &[]);
         render_pass.draw_indexed(0..mesh.num_elements, 0, instances);
     }
 }
 
 impl RenderGroup for ModelRenderGroup {
-    fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>) {
-        render_pass.set_pipeline(&self.render_pipeline);
+    fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, shadow_pass: bool) {
+        if !shadow_pass {
+            render_pass.set_pipeline(&self.render_pipeline);
+        }
         render_pass.set_vertex_buffer(0, self.instances.instance_buffer.slice(..));
         for mesh in &self.model.meshes {
-            let material = &self.model.materials[mesh.material];
-            Self::draw_mesh_instanced(
-                mesh,
-                material,
-                self.instances.get_instance_range(),
-                render_pass,
-            );
+            if shadow_pass {
+                render_pass.set_vertex_buffer(1, mesh.vertex_buffer.slice(..));
+                render_pass
+                    .set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                render_pass.draw_indexed(
+                    0..mesh.num_elements,
+                    0,
+                    self.instances.get_instance_range(),
+                );
+            } else {
+                let material = &self.model.materials[mesh.material];
+                Self::draw_mesh_instanced(
+                    mesh,
+                    material,
+                    self.instances.get_instance_range(),
+                    render_pass,
+                );
+            }
         }
     }
 }

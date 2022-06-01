@@ -21,11 +21,8 @@ struct Light {
     // point_clq[4] == 0? no_attenuation: attenuation
     point_clq: vec4<f32>,
     // cutoff_inner_outer_eps[4] == 0? no_cutoff: cutoff
-    cutoff_inner_outer_eps: vec4<f32>
-}
-
-struct Lights {
-    lights: array<Light, 2>
+    cutoff_inner_outer_eps: vec4<f32>,
+    view_proj: mat4x4<f32>,
 }
 
 @group(1) @binding(0)

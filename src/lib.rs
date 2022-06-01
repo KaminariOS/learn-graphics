@@ -14,9 +14,10 @@ use geo_gen::Entity;
 mod light;
 mod model;
 mod resources;
+mod shadow;
+mod skybox;
 mod texture;
 mod world_space;
-mod skybox;
 
 use model::ModelRenderGroup;
 
@@ -29,6 +30,7 @@ use winit::{
 use crate::camera::{CameraController, CameraView, Projection};
 use crate::geo_gen::{create_sphere, GeoRenderGroup};
 use crate::light::{LightRenderGroup, LightUniform};
+use crate::shadow::ShadowPass;
 use crate::texture::Texture;
 use crate::world_space::{InstanceTransform, Instances};
 #[cfg(target_arch = "wasm32")]
@@ -62,7 +64,7 @@ const PRIMITIVE: wgpu::PrimitiveState = wgpu::PrimitiveState {
 };
 
 pub trait RenderGroup {
-    fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>);
+    fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, shadow_pass: bool);
 }
 
 static UNIFORM_BIND_GROUP_LAYOUT_ENTRY: [wgpu::BindGroupLayoutEntry; 1] =
@@ -101,6 +103,7 @@ pub struct State {
     light_render_group: Rc<RefCell<LightRenderGroup>>,
     render_group_sphere: Rc<RefCell<GeoRenderGroup>>,
     total_duration: Duration,
+    shadow_pass: ShadowPass,
 }
 
 impl State {
@@ -152,7 +155,7 @@ impl State {
 
         let camera = Camera::new(
             CameraView::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0)),
-            Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 800.0),
+            Projection::new(config.width, config.height, cgmath::Deg(45.0), 1., 800.0),
             &device,
         );
 
@@ -181,6 +184,8 @@ impl State {
                 &config,
             )
         };
+
+        let shadow_pass = shadow::ShadowPass::new(&device, &light_render_group.borrow());
         let render_group = {
             let height = 26.0;
             let half_height = height / 2.0;
@@ -206,6 +211,7 @@ impl State {
                 instances,
                 &config,
                 &light_render_group.borrow(),
+                &shadow_pass,
             )
         };
         let render_group_floor = {
@@ -228,6 +234,7 @@ impl State {
                 instances,
                 &config,
                 &light_render_group.borrow(),
+                &shadow_pass,
             )
         };
         let render_group_sphere = {
@@ -248,6 +255,7 @@ impl State {
                 instances,
                 &config,
                 &light_render_group.borrow(),
+                &shadow_pass,
             )
         };
 
@@ -270,6 +278,7 @@ impl State {
                 &camera,
                 &config,
                 &light_render_group.borrow(),
+                &shadow_pass,
             )
         };
         let sword_model_render_group = {
@@ -291,6 +300,7 @@ impl State {
                 &camera,
                 &config,
                 &light_render_group.borrow(),
+                &shadow_pass,
             )
         };
         let skybox = skybox::create(&device, &config, &queue, &camera).await;
@@ -325,6 +335,7 @@ impl State {
             light_render_group,
             render_group_sphere,
             total_duration: Duration::from_secs(0),
+            shadow_pass,
         }
     }
 
@@ -368,6 +379,19 @@ impl State {
                 window.set_cursor_visible(false);
                 true
             }
+            WindowEvent::MouseInput {
+                button: MouseButton::Right,
+                state,
+                ..
+            } => {
+                self.light_render_group.borrow_mut().light_uniforms[1].color =
+                    if *state == ElementState::Pressed {
+                        [1., 1., 1., 0.]
+                    } else {
+                        [0.; 4]
+                    };
+                true
+            }
             _ => false,
         }
     }
@@ -376,9 +400,7 @@ impl State {
         self.camera_controller
             .update_camera(&mut self.camera.view, dt);
         self.camera.update_camera(&self.queue);
-        self.light_render_group
-            .borrow_mut()
-            .update_light(dt, &self.queue, self);
+        self.light_render_group.borrow_mut().update_light(dt, self);
         self.total_duration += dt;
         let count = (3 + self.total_duration.as_secs() % 15) as usize;
         self.render_group_sphere.borrow_mut().entity.obj =
@@ -400,6 +422,11 @@ impl State {
                 label: Some("Render Encoder"),
             });
         let refs: Vec<_> = self.render_groups.iter().map(|x| x.borrow()).collect();
+        self.shadow_pass.render_pass(
+            &mut encoder,
+            &refs,
+            &self.light_render_group.borrow().light_render_triplets,
+        );
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -431,9 +458,9 @@ impl State {
             });
 
             render_pass.set_bind_group(0, &self.camera.camera_bind_group, &[]);
-
+            render_pass.set_bind_group(3, &self.shadow_pass.shadow_map_bind_group, &[]);
             refs.iter().for_each(|x| {
-                x.render(&mut render_pass);
+                x.render(&mut render_pass, false);
             });
         }
 

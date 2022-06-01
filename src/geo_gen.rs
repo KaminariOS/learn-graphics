@@ -1,4 +1,4 @@
-use crate::{texture, Camera};
+use crate::{texture, Camera, ShadowPass};
 use crate::{world_space, LightRenderGroup, RenderGroup, MULTI_SAMPLE, PRIMITIVE};
 use std::cell::RefCell;
 use std::ops::Range;
@@ -50,14 +50,14 @@ impl Vertex {
 
 pub struct GeoObj {
     vertex_data: Vec<Vertex>,
-    pub(crate) index_data: Vec<u16>,
+    pub(crate) index_data: Vec<u32>,
     pub(crate) vertex_buffer: wgpu::Buffer,
     pub(crate) index_buffer: wgpu::Buffer,
 }
 
 impl GeoObj {
-    pub const INDEX_FORMAT: IndexFormat = IndexFormat::Uint16;
-    pub fn new(vertex_data: Vec<Vertex>, index_data: Vec<u16>, device: &Device) -> Self {
+    pub const INDEX_FORMAT: IndexFormat = IndexFormat::Uint32;
+    pub fn new(vertex_data: Vec<Vertex>, index_data: Vec<u32>, device: &Device) -> Self {
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(&vertex_data),
@@ -134,6 +134,7 @@ impl GeoRenderGroup {
         instances: world_space::Instances,
         config: &SurfaceConfiguration,
         light_render_group: &LightRenderGroup,
+        shadow_pass: &ShadowPass,
     ) -> Rc<RefCell<Self>> {
         let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: Some("Geo Shader"),
@@ -146,6 +147,7 @@ impl GeoRenderGroup {
                     &camera.camera_bind_group_layout,
                     &light_render_group.light_bind_group_layout,
                     &entity.texture_bind_group_layout,
+                    &shadow_pass.shadow_map_bind_group_layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -156,7 +158,7 @@ impl GeoRenderGroup {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[Vertex::desc(), world_space::desc()],
+                buffers: &[world_space::desc(), Vertex::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -186,11 +188,14 @@ impl GeoRenderGroup {
 }
 
 impl RenderGroup for GeoRenderGroup {
-    fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>) {
-        render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(2, &self.entity.texture_bind_group, &[]);
-        render_pass.set_vertex_buffer(0, self.entity.obj.vertex_buffer.slice(..));
-        render_pass.set_vertex_buffer(1, self.instances.instance_buffer.slice(..));
+    fn render<'a, 'b: 'a>(&'b self, render_pass: &mut wgpu::RenderPass<'a>, shadow_pass: bool) {
+        if !shadow_pass {
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(2, &self.entity.texture_bind_group, &[]);
+        }
+
+        render_pass.set_vertex_buffer(0, self.instances.instance_buffer.slice(..));
+        render_pass.set_vertex_buffer(1, self.entity.obj.vertex_buffer.slice(..));
         render_pass.set_index_buffer(self.entity.obj.index_buffer.slice(..), GeoObj::INDEX_FORMAT);
         render_pass.draw_indexed(
             self.entity.obj.get_index_range(),
@@ -257,9 +262,9 @@ struct SphereGenerator {
     u_frag: f32,
     v_frag: f32,
     vertex_data: Vec<Vertex>,
-    index_data: Vec<u16>,
-    enqueued: Vec<Vec<Option<u16>>>,
-    index: u16,
+    index_data: Vec<u32>,
+    enqueued: Vec<Vec<Option<u32>>>,
+    index: u32,
 }
 
 const PI: f32 = std::f32::consts::PI;
@@ -299,7 +304,7 @@ impl SphereGenerator {
         }
     }
 
-    fn get_index(&mut self, v: usize, u: usize) -> u16 {
+    fn get_index(&mut self, v: usize, u: usize) -> u32 {
         return if let Some(ind) = &self.enqueued[u][v] {
             *ind
         } else {

@@ -1,9 +1,12 @@
+use crate::{resources, texture, Camera, RenderGroup, MULTI_SAMPLE};
+use image::{DynamicImage, GenericImageView};
 use std::cell::RefCell;
 use std::num::NonZeroU32;
 use std::rc::Rc;
-use image::{DynamicImage, GenericImageView};
-use wgpu::{BindGroup, Device, Queue, RenderPass, RenderPipeline, SurfaceConfiguration, Texture, TextureDimension};
-use crate::{Camera, MULTI_SAMPLE, RenderGroup, resources, texture};
+use wgpu::{
+    BindGroup, Device, Queue, RenderPass, RenderPipeline, SurfaceConfiguration, Texture,
+    TextureDimension,
+};
 
 pub struct SkyboxRenderGroup {
     sky_pipeline: RenderPipeline,
@@ -11,14 +14,22 @@ pub struct SkyboxRenderGroup {
 }
 
 impl RenderGroup for SkyboxRenderGroup {
-    fn render<'a, 'b: 'a>(&'b self, render_pass: &mut RenderPass<'a>) {
+    fn render<'a, 'b: 'a>(&'b self, render_pass: &mut RenderPass<'a>, shadow_pass: bool) {
+        if shadow_pass {
+            return;
+        }
         render_pass.set_bind_group(1, &self.bind_group, &[]);
         render_pass.set_pipeline(&self.sky_pipeline);
         render_pass.draw(0..3, 0..1);
     }
 }
 
-pub async fn create(device: &Device, config: &SurfaceConfiguration, queue: &Queue, camera: &Camera) -> Rc<RefCell<SkyboxRenderGroup>> {
+pub async fn create(
+    device: &Device,
+    config: &SurfaceConfiguration,
+    queue: &Queue,
+    camera: &Camera,
+) -> Rc<RefCell<SkyboxRenderGroup>> {
     let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
         label: None,
         source: wgpu::ShaderSource::Wgsl(include_str!("skybox.wgsl").into()),
@@ -102,7 +113,7 @@ pub async fn create(device: &Device, config: &SurfaceConfiguration, queue: &Queu
     });
     Rc::new(RefCell::new(SkyboxRenderGroup {
         sky_pipeline,
-        bind_group
+        bind_group,
     }))
 }
 
@@ -112,7 +123,9 @@ async fn load_cubemap(dir: &str, ext: &str) -> Vec<DynamicImage> {
     for face in faces {
         let filename = face.to_owned() + ext;
         let path = std::path::Path::new(dir).join(filename);
-        let bytes = resources::load_binary(path.to_str().unwrap()).await.unwrap();
+        let bytes = resources::load_binary(path.to_str().unwrap())
+            .await
+            .unwrap();
         vec.push(image::load_from_memory(&bytes).unwrap());
     }
     vec
@@ -122,20 +135,25 @@ async fn create_cubemap(device: &Device, queue: &Queue) -> Texture {
     // let images = load_cubemap("Yokohama", ".jpg").await;
     let images = load_cubemap("skype", ".png").await;
     let (width, height) = images[0].dimensions();
-    let total = images.into_iter().map(|x| x.to_rgba8().into_raw()).fold(vec![], |mut acc, next| {
-        acc.extend(next); acc
-    });
+    let total =
+        images
+            .into_iter()
+            .map(|x| x.to_rgba8().into_raw())
+            .fold(vec![], |mut acc, next| {
+                acc.extend(next);
+                acc
+            });
     let size = wgpu::Extent3d {
         width,
         height,
-        depth_or_array_layers: 6
+        depth_or_array_layers: 6,
     };
     let layer_size = wgpu::Extent3d {
         depth_or_array_layers: 1,
         ..size
     };
     let max_mips = layer_size.max_mips(wgpu::TextureDimension::D2);
-    let tex = device.create_texture( &wgpu::TextureDescriptor {
+    let tex = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("Cube"),
         size,
         mip_level_count: max_mips,

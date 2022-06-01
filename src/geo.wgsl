@@ -21,7 +21,8 @@ struct Light {
     // point_clq[3] == 0? no_attenuation: attenuation
     point_clq: vec4<f32>,
     // cutoff_inner_outer_eps[4] == 0? no_cutoff: cutoff
-    cutoff_inner_outer_eps: vec4<f32>
+    cutoff_inner_outer_eps: vec4<f32>,
+    view_proj: mat4x4<f32>,
 }
 
 struct Lights {
@@ -117,11 +118,29 @@ fn cutoff(light: Light, dir: vec3<f32>) -> f32 {
     return intensity;
 }
 
+@group(3)
+@binding(0)
+var t_shadow: texture_depth_2d_array;
+@group(3)
+@binding(1)
+var sampler_shadow: sampler_comparison;
+
+fn fetch_shadow(light_id: i32, homogeneous_coords: vec4<f32>) -> f32 {
+    if (homogeneous_coords.w <= 0.0) {
+        return 1.0;
+    }
+    // compensate for the Y-flip difference between the NDC and texture coordinates
+    let flip_correction = vec2<f32>(0.5, -0.5);
+    // compute texture coordinates for shadow lookup
+    let proj_correction = 1.0 / homogeneous_coords.w;
+    let light_local = homogeneous_coords.xy * flip_correction * proj_correction + vec2<f32>(0.5, 0.5);
+    // do the lookup, using HW PCF and comparison
+    return textureSampleCompareLevel(t_shadow, sampler_shadow, light_local, light_id, homogeneous_coords.z * proj_correction);
+}
 
 @fragment
 fn fs_main(f_in: VertexOutput) -> @location(0) vec4<f32> {
      var res = vec3<f32>(0.);
-     //let light_count = i32(arrayLength(&lights.lights));
      let light_count = 2;
 
      let v_tex = vec2<f32>(f_in.tex_coords.x, 1.0 - f_in.tex_coords.y);
@@ -129,6 +148,7 @@ fn fs_main(f_in: VertexOutput) -> @location(0) vec4<f32> {
 
      for(var i: i32 = 0; i < light_count; i++) {
         let light = lights.lights[i];
+        let shadow = fetch_shadow(i, light.view_proj * vec4<f32>(f_in.world_position, 1.0));
         let light_color = attenuation(light, f_in.world_position);
         let ambient_strength = light.ambient_strength;
         let ambient_color = light_color * ambient_strength;
@@ -143,7 +163,7 @@ fn fs_main(f_in: VertexOutput) -> @location(0) vec4<f32> {
 
         let specular_strength = pow(max(dot(f_in.world_normal, half_dir), 0.0), 32.0);
         let specular_color = light.specular_strength * specular_strength * light_color * cut_off_intensity;
-        res += (ambient_color + diffuse_color + specular_color) * obj_color.rgb;
+        res += shadow * (ambient_color + diffuse_color + specular_color) * obj_color.rgb;
      }
     return vec4<f32>(res, obj_color.a);
 }

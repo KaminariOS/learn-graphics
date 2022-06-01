@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::num::{NonZeroU32, NonZeroU8, NonZeroUsize};
+use std::num::{NonZeroU32, NonZeroU8};
 
 use crate::{SAMPLE_COUNT, TEXTURE_SAMPLE_COUNT};
 use anyhow::*;
@@ -21,7 +21,7 @@ impl Texture {
             format: Texture::DEPTH_FORMAT,
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::LessEqual, // 1.
-            stencil: wgpu::StencilState::default(),     // 2.
+            stencil: wgpu::StencilState::default(),          // 2.
             bias: wgpu::DepthBiasState::default(),
         })
     }
@@ -271,5 +271,3 @@ fn generate_mipmaps(
     }
     queue.submit(Some(encoder.finish()));
 }
-
-
