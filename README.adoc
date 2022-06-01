@@ -3,6 +3,11 @@
 
 This repo is based on https://sotrh.github.io/learn-wgpu[learn-wgpu] and https://github.com/gfx-rs/wgpu[wgpu official examples]
 
+.Run on PC
+[source, bash]
+----
+cargo run
+----
 .Build wasm
 [source, bash]
 ----
@@ -21,4 +26,6 @@ https://www.cgtrader.com/free-3d-models/character/woman/cute-girl-5122a81c-b888-
 
 https://wallha.com/wallpaper/women-model-cosplay-indoors-women-indoors-anime-anime-girls-asuka-langley-soryu-redhead-neon-genesis-1267493[Asuka cos]
 
-https://www.textures.com/[floor]
+https://www.textures.com/[floor texture]
+
+https://opengameart.org/content/elyvisions-skyboxes[Skybox]
