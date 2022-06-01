@@ -31,7 +31,7 @@ pub struct LightUniform {
 impl Default for LightUniform {
     fn default() -> Self {
         Self {
-            position: [40., 20., -40.0],
+            position: [80., 80., 60.0],
             direction: [0.; 3],
             _padding_2: 0.,
             _padding_3: 0.,
@@ -40,7 +40,7 @@ impl Default for LightUniform {
             ambient_strength: 0.1,
             specular_strength: 0.3,
             _padding_1: 0.,
-            point_clq: [1., 0.045, 0.0075, 1.],
+            point_clq: [1., 0.025, 0.0035, 1.],
             cutoff_inner_outer_eps: [0.; 4],
             view_proj: cgmath::Matrix4::identity().into(),
         }

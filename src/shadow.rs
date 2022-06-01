@@ -21,8 +21,8 @@ impl ShadowPass {
     pub fn new(device: &Device, light_render_group: &LightRenderGroup) -> Self {
         let light_count = light_render_group.light_render_triplets.len();
         let size = wgpu::Extent3d {
-            width: 512,
-            height: 512,
+            width: 2048,
+            height: 2048,
             depth_or_array_layers: light_count as u32,
         };
         let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
