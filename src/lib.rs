@@ -506,39 +506,53 @@ pub async fn run() {
     }
 
     let event_loop = EventLoop::new();
-    let mut window = WindowBuilder::new();
-
+    // let mut window = WindowBuilder::new();
+    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let window = Rc::new(window);
     #[cfg(target_arch = "wasm32")]
     {
-        // Winit prevents sizing with CSS, so we have to set
-        // the size manually when on web.
-        use winit::dpi::LogicalSize;
-
-        use winit::platform::web::WindowExtWebSys;
-        let win = web_sys::window().expect("Failed to get window object");
-        fn get_size(val: Result<JsValue, JsValue>) -> f64 {
-            val.ok().and_then(|x| x.as_f64()).unwrap()
-        }
-        let (width, height) = (get_size(win.inner_width()), get_size(win.inner_height()));
-        log::warn!("Window size: {:?} {:?}", width, height);
-        // window.set_inner_size(LogicalSize::new(width, height));
         use wasm_bindgen::JsCast;
-        let canvas = web_sys::window()
+        use winit::platform::web::WindowExtWebSys;
+        use winit::dpi::LogicalSize;
+        // Retrieve current width and height dimensions of browser client window
+        let get_window_size = || {
+            let client_window = web_sys::window().unwrap();
+            LogicalSize::new(
+                client_window.inner_width().unwrap().as_f64().unwrap(),
+                client_window.inner_height().unwrap().as_f64().unwrap(),
+            )
+        };
+
+        let window = Rc::clone(&window);
+
+        // Initialize winit window with current dimensions of browser client
+        window.set_inner_size(get_window_size());
+
+        let client_window = web_sys::window().unwrap();
+
+        // Attach winit canvas to body element
+        web_sys::window()
             .and_then(|win| win.document())
-            .and_then(|doc| {
-                let dst = doc.get_element_by_id("wasm-example")?;
-                dst.dyn_into::<web_sys::HtmlCanvasElement>()
-                    .map_err(|_| ())
+            .and_then(|doc| doc.body())
+            .and_then(|body| {
+                body.append_child(&web_sys::Element::from(window.canvas()))
                     .ok()
-            });
-        use winit::platform::web::WindowBuilderExtWebSys;
-        window = window
-            .with_inner_size(LogicalSize::new(width, height))
-            .with_canvas(canvas);
-        // .expect("Couldn't append canvas to document body.");
+            })
+            .expect("couldn't append canvas to document body");
+
+        // Listen for resize event on browser client. Adjust winit window dimensions
+        // on event trigger
+        let closure = wasm_bindgen::closure::Closure::wrap(Box::new(move |_e: web_sys::Event| {
+            let size = get_window_size();
+            window.set_inner_size(size)
+        }) as Box<dyn FnMut(_)>);
+        client_window
+            .add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref())
+            .unwrap();
+        closure.forget();
     }
 
-    let window = window.build(&event_loop).unwrap();
+    // let window = window.build(&event_loop).unwrap();
     // State::new uses async code, so we're going to wait for it to finish
     let mut state = State::new(&window).await;
 
