@@ -27,7 +27,7 @@ impl InstanceTransform {
 
 pub(crate) fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
     use std::mem;
-    static ATRIBUTES: &[VertexAttribute; 7] = &wgpu::vertex_attr_array![
+    static ATTRIBUTES: &[VertexAttribute; 7] = &wgpu::vertex_attr_array![
         5 => Float32x4,
         6 => Float32x4,
         7 => Float32x4,
@@ -42,7 +42,7 @@ pub(crate) fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         // This means that our shaders will only change to use the next
         // instance when the shader starts processing a new instance
         step_mode: wgpu::VertexStepMode::Instance,
-        attributes: ATRIBUTES
+        attributes: ATTRIBUTES
     }
 }
 
