@@ -1,0 +1,15 @@
+{
+  "name": "learn_graphics",
+  "collaborators": [
+    "Kocho <chankocyo@gmail.com>"
+  ],
+  "version": "0.1.0",
+  "files": [
+    "learn_graphics_bg.wasm",
+    "learn_graphics.js",
+    "learn_graphics.d.ts"
+  ],
+  "module": "learn_graphics.js",
+  "types": "learn_graphics.d.ts",
+  "sideEffects": false
+}
